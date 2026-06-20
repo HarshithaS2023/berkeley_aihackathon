@@ -1,7 +1,7 @@
 import type { Difficulty, SessionResult } from '../types'
 
 const clampDifficulty = (value: number): Difficulty =>
-  Math.min(5, Math.max(1, value)) as Difficulty
+  Math.min(3, Math.max(1, value)) as Difficulty
 
 export function calculateNextDifficulty(
   currentDifficulty: Difficulty,

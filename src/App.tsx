@@ -89,7 +89,7 @@ function QuizScreen() {
           Question {Math.min(displayedQuestionNumber, settings.numQuestions)} of{' '}
           {settings.numQuestions}
         </span>
-        <span className="difficulty">Difficulty {currentDifficulty}/5</span>
+        <span className="difficulty">Difficulty {currentDifficulty}/3</span>
         <span className="timer">{formatTime(elapsedSeconds)}</span>
       </header>
 

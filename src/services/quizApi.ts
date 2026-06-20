@@ -122,6 +122,45 @@ export const mockQuizApi: QuizApi = {
   },
 }
 
-// Person 1 can replace this export with an HTTP-backed implementation
-// without changing the store or UI.
-export const quizApi: QuizApi = mockQuizApi
+// HTTP-backed implementation that talks to the FastAPI backend in claude_api.py.
+const env = (import.meta as unknown as { env?: Record<string, string> }).env ?? {}
+const API_BASE = (env.VITE_API_BASE ?? 'http://127.0.0.1:8000').replace(/\/$/, '')
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    let detail = `Request to ${path} failed (${response.status}).`
+    try {
+      const data = await response.json()
+      if (data?.detail) detail = String(data.detail)
+    } catch {
+      // response had no JSON body; keep the default detail
+    }
+    throw new Error(detail)
+  }
+
+  return response.json() as Promise<T>
+}
+
+export const httpQuizApi: QuizApi = {
+  generateQuestion(request) {
+    return postJson<Question>('/generate-question', request)
+  },
+
+  analyzeWork(request) {
+    return postJson<Feedback>('/analyze-work', request)
+  },
+
+  generateSummary(results) {
+    return postJson<SummaryResponse>('/generate-summary', { results })
+  },
+}
+
+// Set VITE_USE_MOCK=true to develop the UI without a running backend.
+export const quizApi: QuizApi =
+  env.VITE_USE_MOCK === 'true' ? mockQuizApi : httpQuizApi
