@@ -1,1 +1,1 @@
-# berkeyel_aihackathon
+# berkeley_aihackathon
