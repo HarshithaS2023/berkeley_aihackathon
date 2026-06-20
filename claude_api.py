@@ -1,10 +1,11 @@
 import anthropic
 import json
 import os
+from typing import Literal
 
 from anthropic import APIError
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 app = FastAPI()
 client = anthropic.Anthropic()
@@ -23,6 +24,75 @@ class WorkSubmission(BaseModel):
     work_text: str | None = None
     correct_answer: str
     prior_errors: list[str]
+
+
+class QuestionRequest(BaseModel):
+    topic: str
+    difficulty: Literal["easy", "medium", "hard"]
+    material_context: str | None = None
+    prior_questions: list[str] = Field(default_factory=list)
+
+
+class QuestionResponse(BaseModel):
+    topic: str
+    difficulty: str
+    question_type: str
+    question_text: str
+    hint: str
+    correct_answer: str
+    solution_steps: list[str]
+
+
+def create_question(body: QuestionRequest) -> QuestionResponse:
+    difficulty_guidance = {
+        "easy": "Use direct recall or a one-step application. Keep numbers simple.",
+        "medium": "Use a two- to three-step problem that requires applying the concept.",
+        "hard": "Use a multi-step problem that combines ideas or asks for deeper reasoning."
+    }
+
+    prompt = f"""
+Create one STEM quiz question for a student.
+
+Topic selected by the user: {body.topic}
+Difficulty: {body.difficulty}
+Difficulty guidance: {difficulty_guidance[body.difficulty]}
+
+Material context, if any:
+{body.material_context or "No source material provided."}
+
+Prior questions to avoid repeating:
+{json.dumps(body.prior_questions)}
+
+Return only valid JSON with this schema:
+{{
+  "topic": "{body.topic}",
+  "difficulty": "{body.difficulty}",
+  "question_type": "conceptual multiple choice | short-answer computation | proof-style derivation",
+  "question_text": "the student-facing question",
+  "hint": "one helpful hint that does not give away the answer",
+  "correct_answer": "the final answer",
+  "solution_steps": ["step 1", "step 2"]
+}}
+""".strip()
+
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=1000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    question = parse_json_object(response.content[0].text)
+    return QuestionResponse(**question)
+
+
+@app.post("/generate-question")
+async def generate_question(body: QuestionRequest):
+    try:
+        return create_question(body)
+    except APIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=502, detail=f"Invalid model response: {exc}") from exc
+
 
 @app.post("/analyze-work")
 async def analyze_work(body: WorkSubmission):
