@@ -80,7 +80,7 @@ function QuizScreen() {
             </label>
             <WorkPanel
               onShowHint={revealHint}
-              submitting={phase === 'submitting'}
+              submitting={phase === 'answering'}
               onSubmitWork={(work) =>
                 void submitCurrentQuestion({
                   ...work,

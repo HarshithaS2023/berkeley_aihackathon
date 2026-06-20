@@ -1,18 +1,45 @@
-import anthropic
 import json
 import os
 import uuid as _uuid
+from contextlib import asynccontextmanager
 from typing import Literal
 
+import anthropic
 from anthropic import APIError
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-load_dotenv()
+# override=True ensures values in .env win over any shell variables
+# (e.g. a local Ollama setup exporting ANTHROPIC_MODEL / ANTHROPIC_BASE_URL).
+load_dotenv(override=True)
 
-app = FastAPI()
+# Force the Anthropic cloud API. We pass api_key and base_url explicitly so a
+# local proxy configured via ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN (Ollama)
+# cannot redirect these calls.
+API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+BASE_URL = os.getenv("CLAUDE_BASE_URL", "https://api.anthropic.com")
+MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
+client = anthropic.AsyncAnthropic(api_key=API_KEY, base_url=BASE_URL)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Warm up the connection/model so the first real request is fast.
+    try:
+        await client.messages.create(
+            model=MODEL,
+            max_tokens=5,
+            messages=[{"role": "user", "content": "ping"}],
+        )
+    except Exception:
+        pass
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,9 +47,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-client = anthropic.Anthropic()
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 
 def parse_json_object(text: str) -> dict:
@@ -39,6 +63,11 @@ def parse_json_array(text: str) -> list:
     if start == -1 or end == -1:
         raise ValueError("No JSON array found in Claude response")
     return json.loads(text[start : end + 1])
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "model": MODEL, "base_url": BASE_URL}
 
 
 # ── Analyze Source ────────────────────────────────────────────────────────────
@@ -82,9 +111,9 @@ async def analyze_source(body: AnalyzeSourceRequest):
     })
 
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model=MODEL,
-            max_tokens=800,
+            max_tokens=500,
             messages=[{"role": "user", "content": content}],
         )
         return parse_json_object(response.content[0].text)
@@ -128,10 +157,13 @@ async def generate_questions_batch(body: BatchQuestionRequest):
         '[{"question":"...","hints":["hint that does not give away the answer"],"answer":"...","solution":"step-by-step explanation","concepts":["concept1"]}]'
     )
 
+    # Scale tokens with how many questions we ask for instead of a flat large cap.
+    max_tokens = min(3000, 500 + 400 * max(1, body.count))
+
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model=MODEL,
-            max_tokens=4000,
+            max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
         items = parse_json_array(response.content[0].text)
@@ -153,7 +185,7 @@ async def generate_questions_batch(body: BatchQuestionRequest):
         raise HTTPException(status_code=502, detail=f"Invalid model response: {exc}") from exc
 
 
-# ── Analyze Work ──────────────────────────────────────────────────────────────
+# ── Analyze Work (single collapsed call) ──────────────────────────────────────
 
 class WorkSubmission(BaseModel):
     image_base64: str | None = None
@@ -164,98 +196,60 @@ class WorkSubmission(BaseModel):
 
 @app.post("/analyze-work")
 async def analyze_work(body: WorkSubmission):
+    if not body.work_text and not body.image_base64:
+        raise HTTPException(status_code=400, detail="Provide image_base64 or work_text.")
+
+    instructions = (
+        "You are a warm, precise math tutor. Evaluate the student's work in ONE pass.\n\n"
+        f"Correct answer: {body.correct_answer}\n"
+        f"Prior errors this session: {json.dumps(body.prior_errors)}\n\n"
+        "Look at the student's work below. Decide if their final answer is correct, "
+        "find where they diverged (if at all), check whether this repeats one of the "
+        "prior errors, and write feedback.\n\n"
+        "Respond ONLY with valid JSON, no other text:\n"
+        '{"correct": true/false, '
+        '"analysis": "specific explanation of where the work diverged, cite the step", '
+        '"is_repeated": true/false, '
+        '"gap": "one sentence on the underlying concept gap", '
+        '"feedback": "warm Khan Academy-style feedback, 2-3 sentences"}'
+    )
+
+    if body.image_base64:
+        user_content: list = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": body.image_base64,
+                },
+            },
+            {"type": "text", "text": instructions},
+        ]
+    else:
+        user_content = f"Student's work / answer:\n{body.work_text}\n\n{instructions}"
+
     try:
-        if body.work_text:
-            description = body.work_text
-        elif body.image_base64:
-            # Step 1 — Vision: describe what the student wrote
-            step1 = client.messages.create(
-                model=MODEL,
-                max_tokens=1000,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/png",
-                                "data": body.image_base64,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": "Describe exactly what this student wrote, step by step. Be precise, no judgment yet.",
-                        },
-                    ],
-                }]
-            )
-            description = step1.content[0].text
-        else:
-            raise HTTPException(status_code=400, detail="Provide image_base64 or work_text.")
-
-        # Step 2 — Compare: determine correctness and where they diverged
-        step2 = client.messages.create(
+        response = await client.messages.create(
             model=MODEL,
-            max_tokens=1000,
-            messages=[{
-                "role": "user",
-                "content": (
-                    f"Student's work: {description}\n\n"
-                    f"Correct answer: {body.correct_answer}\n\n"
-                    "Is the student's answer correct? Where did their work diverge (if at all)? "
-                    'Respond ONLY in JSON: {"correct": true/false, "analysis": "specific explanation"}'
-                ),
-            }]
+            max_tokens=600,
+            messages=[{"role": "user", "content": user_content}],
         )
-        step2_data = parse_json_object(step2.content[0].text)
-        is_correct = step2_data.get("correct", False)
-        error_analysis = step2_data.get("analysis", "")
-
-        # Step 3 — Pattern Check
-        step3 = client.messages.create(
-            model=MODEL,
-            max_tokens=500,
-            messages=[{
-                "role": "user",
-                "content": (
-                    f"Prior errors this session: {json.dumps(body.prior_errors)}\n\n"
-                    f"Current analysis: {error_analysis}\n\n"
-                    'Respond ONLY in JSON: {"is_repeated": true/false, "gap": "one sentence on the underlying concept gap"}'
-                ),
-            }]
-        )
-        pattern = parse_json_object(step3.content[0].text)
-
-        # Step 4 — Feedback
-        step4 = client.messages.create(
-            model=MODEL,
-            max_tokens=500,
-            messages=[{
-                "role": "user",
-                "content": (
-                    f"Write warm, specific tutoring feedback.\n\n"
-                    f"Correct: {is_correct}\n"
-                    f"What they did: {description}\n"
-                    f"Analysis: {error_analysis}\n"
-                    f"Concept gap: {pattern['gap']}\n\n"
-                    "Khan Academy tone, 2-3 sentences."
-                ),
-            }]
-        )
-
-        return {
-            "correct": is_correct,
-            "error_found": not is_correct,
-            "error_type": error_analysis,
-            "is_repeated_pattern": pattern["is_repeated"],
-            "conceptual_gap": pattern["gap"],
-            "feedback_text": step4.content[0].text,
-        }
+        data = parse_json_object(response.content[0].text)
     except APIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except (KeyError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=502, detail=f"Invalid model response: {exc}") from exc
+
+    is_correct = bool(data.get("correct", False))
+    return {
+        "correct": is_correct,
+        "error_found": not is_correct,
+        "error_type": data.get("analysis", ""),
+        "is_repeated_pattern": bool(data.get("is_repeated", False)),
+        "conceptual_gap": data.get("gap", ""),
+        "feedback_text": data.get("feedback", ""),
+    }
 
 
 # ── Legacy: single question endpoint ──────────────────────────────────────────
@@ -307,9 +301,9 @@ Return ONLY valid JSON:
 """.strip()
 
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model=MODEL,
-            max_tokens=1000,
+            max_tokens=600,
             messages=[{"role": "user", "content": prompt}],
         )
         question = parse_json_object(response.content[0].text)
@@ -318,3 +312,9 @@ Return ONLY valid JSON:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except (KeyError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=502, detail=f"Invalid model response: {exc}") from exc
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="127.0.0.1", port=3001)
