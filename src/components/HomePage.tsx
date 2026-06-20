@@ -1,7 +1,13 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import mascot from '../assets/hero.png'
-import { useStore, type UploadedFile } from '../store/useStore'
+import { useQuizStore } from '../store/quizStore'
+
+interface UploadedFile {
+  name: string
+  base64: string
+  mimeType: string
+}
 
 export default function HomePage() {
   const [chatInput, setChatInput] = useState('')
@@ -11,8 +17,25 @@ export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
-  const { uploadedFiles, addUploadedFile, removeUploadedFile, setMaterialContext, setSettings } =
-    useStore()
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
+  const [numQuestions, setNumQuestions] = useState(5)
+  const [numQuestionsInput, setNumQuestionsInput] = useState('5')
+  const [whiteboardGraded, setWhiteboardGraded] = useState(false)
+
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const addUploadedFile = (f: UploadedFile) => setUploadedFiles((prev) => [...prev, f])
+  const removeUploadedFile = (name: string) => setUploadedFiles((prev) => prev.filter((f) => f.name !== name))
+
+  const setSettings = useQuizStore((s) => s.setSettings)
+  const setSourceProfile = useQuizStore((s) => s.setSourceProfile)
+  const startQuiz = useQuizStore((s) => s.startQuiz)
+
+  const difficultyLevels: { label: string; value: 'easy' | 'medium' | 'hard'; num: number }[] = [
+    { label: 'Easy',   value: 'easy',   num: 1 },
+    { label: 'Medium', value: 'medium', num: 3 },
+    { label: 'Hard',   value: 'hard',   num: 5 },
+  ]
+
 
   const readFileAsBase64 = (file: File): Promise<UploadedFile> =>
     new Promise((resolve, reject) => {
@@ -53,8 +76,8 @@ export default function HomePage() {
     setError(null)
     setIsAnalyzing(true)
 
-    const numMatch = chatInput.match(/\d+/)
-    setSettings({ numQuestions: numMatch ? parseInt(numMatch[0]) : 5 })
+    const selectedLevel = difficultyLevels.find((d) => d.value === difficulty)!
+    setSettings({ numQuestions, startingDifficulty: selectedLevel.num as 1 | 2 | 3 | 4 | 5 })
 
     try {
       const res = await fetch('http://localhost:3001/analyze-source', {
@@ -62,13 +85,23 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files: uploadedFiles }),
       })
-      if (res.ok) setMaterialContext(await res.json())
+      if (res.ok) {
+        const data = await res.json()
+        setSourceProfile({
+          topics: data.topics ?? [],
+          concepts: data.concepts ?? [],
+          styleNotes: data.styleNotes ?? (whiteboardGraded ? 'Grade whiteboard work.' : ''),
+        })
+      } else {
+        setSourceProfile({ topics: [], concepts: [], styleNotes: '' })
+      }
     } catch {
-      // backend not ready yet — proceed anyway
+      setSourceProfile({ topics: [], concepts: [], styleNotes: '' })
     }
 
+    void startQuiz()
     setIsAnalyzing(false)
-    navigate('/setup')
+    navigate('/quiz')
   }
 
   return (
@@ -85,9 +118,139 @@ export default function HomePage() {
         <span className="text-sm" style={{ color: 'var(--text)' }}>— your personal tutor</span>
       </header>
 
-      {/* Mascot */}
-      <div className="flex-1 flex items-center justify-center px-4">
-        <div className="flex flex-col items-center gap-4">
+      {/* Mascot area — 3 columns: difficulty | mascot | spacer */}
+      <div className="flex-1 flex items-center px-8 gap-8">
+
+        {/* Left: controls */}
+        <div className="flex flex-col gap-5 w-44 flex-shrink-0">
+
+          {/* Difficulty */}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text)' }}>
+              Difficulty
+            </p>
+            {difficultyLevels.map(({ label, value }) => {
+              const isSelected = difficulty === value
+              return (
+                <button
+                  key={value}
+                  onClick={() => setDifficulty(value)}
+                  style={{
+                    background: isSelected ? 'var(--accent)' : 'var(--bg)',
+                    color: isSelected ? '#fff' : 'var(--text-h)',
+                    border: isSelected ? '1px solid var(--accent-border)' : '1px solid var(--border)',
+                    borderRadius: '6px',
+                    padding: '8px 14px',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    fontWeight: isSelected ? 600 : 400,
+                    transition: 'all 0.15s',
+                    textAlign: 'left',
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Number of questions */}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text)' }}>
+              # of Questions
+            </p>
+            <div
+              className="flex items-center gap-1"
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                background: 'var(--bg)',
+                padding: '4px 8px',
+              }}
+            >
+              <button
+                onClick={() => { const n = Math.max(1, numQuestions - 1); setNumQuestions(n); setNumQuestionsInput(String(n)) }}
+                style={{ color: 'var(--text-h)', fontSize: '1.1rem', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+              >−</button>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={numQuestionsInput}
+                onChange={(e) => setNumQuestionsInput(e.target.value)}
+                onBlur={() => {
+                  const v = parseInt(numQuestionsInput)
+                  const clamped = isNaN(v) ? 5 : Math.min(20, Math.max(1, v))
+                  setNumQuestions(clamped)
+                  setNumQuestionsInput(String(clamped))
+                }}
+                style={{
+                  width: '36px',
+                  textAlign: 'center',
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  color: 'var(--text-h)',
+                  fontSize: '0.95rem',
+                }}
+              />
+              <button
+                onClick={() => { const n = Math.min(20, numQuestions + 1); setNumQuestions(n); setNumQuestionsInput(String(n)) }}
+                style={{ color: 'var(--text-h)', fontSize: '1.1rem', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+              >+</button>
+            </div>
+          </div>
+
+          {/* Whiteboard grading toggle */}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text)' }}>
+              Whiteboard work graded
+            </p>
+            <button
+              onClick={() => setWhiteboardGraded((v) => !v)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+              aria-pressed={whiteboardGraded}
+            >
+              {/* Pill track */}
+              <div style={{
+                width: '44px',
+                height: '24px',
+                borderRadius: '12px',
+                background: whiteboardGraded ? 'var(--accent)' : 'var(--border)',
+                position: 'relative',
+                transition: 'background 0.2s',
+                flexShrink: 0,
+              }}>
+                {/* Thumb */}
+                <div style={{
+                  position: 'absolute',
+                  top: '3px',
+                  left: whiteboardGraded ? '23px' : '3px',
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  transition: 'left 0.2s',
+                }} />
+              </div>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-h)' }}>
+                {whiteboardGraded ? 'On' : 'Off'}
+              </span>
+            </button>
+          </div>
+
+        </div>
+
+        {/* Center: mascot */}
+        <div className="flex-1 flex flex-col items-center gap-4">
           {/* Speech bubble */}
           <div
             className="relative px-5 py-4 max-w-xs text-center"
@@ -123,6 +286,10 @@ export default function HomePage() {
 
           <img src={mascot} alt="Professor X mascot" className="w-44 h-44 object-contain" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))' }} />
         </div>
+
+        {/* Right spacer to keep mascot centered */}
+        <div className="w-44 flex-shrink-0" />
+
       </div>
 
       {/* Bottom bar — fixed height so it never grows with file count */}
