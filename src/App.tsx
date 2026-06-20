@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import { WorkPanel } from './components/WorkPanel/WorkPanel'
 import { useQuestionTimer } from './hooks/useQuestionTimer'
 import { useQuizStore } from './store/quizStore'
 
@@ -73,10 +74,6 @@ function QuizScreen() {
   const displayedQuestionNumber =
     phase === 'feedback' ? results.length : results.length + 1
 
-  const submit = () => {
-    void submitCurrentQuestion({ answerText })
-  }
-
   const next = () => {
     setAnswerText('')
     void continueQuiz()
@@ -105,30 +102,23 @@ function QuizScreen() {
 
         {!isFeedback && (
           <>
-            <div className="whiteboard-placeholder">
-              Person 3’s Excalidraw canvas mounts here
-            </div>
             <label>
-              Final answer
+              Final answer (optional)
               <input
                 value={answerText}
                 onChange={(event) => setAnswerText(event.target.value)}
                 placeholder="Enter your answer"
               />
             </label>
-            <div className="actions">
-              <button type="button" className="secondary" onClick={revealHint}>
-                Show hint
-              </button>
-              <button
-                type="button"
-                className="primary"
-                onClick={submit}
-                disabled={!answerText.trim()}
-              >
-                Submit work
-              </button>
-            </div>
+            <WorkPanel
+              onShowHint={revealHint}
+              onSubmitWork={(work) =>
+                void submitCurrentQuestion({
+                  ...work,
+                  answerText: answerText.trim() || undefined,
+                })
+              }
+            />
           </>
         )}
 

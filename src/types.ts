@@ -58,6 +58,11 @@ export type WorkSubmission = {
   hintsUsed: number
 }
 
+export type WorkSubmissionInput = Omit<
+  WorkSubmission,
+  'responseTimeSeconds' | 'hintsUsed'
+>
+
 export type AnalyzeWorkRequest = {
   question: Question
   submission: WorkSubmission
