@@ -1,105 +1,105 @@
-type AnalyzeSourceRequest = {
-  file: File;
-};
+export type Difficulty = 1 | 2 | 3 | 4 | 5
 
-type SourceProfile = {
-  topics: string[];
-  concepts: string[];
-  styleNotes: string;
-};
+export type ProblemType = 'definition' | 'computation' | 'word_problem'
 
-type QuizSettings = {
-  numQuestions: number;
+export type SimilarityLevel =
+  | 'very_similar'
+  | 'same_concepts'
+  | 'concept_transfer'
 
-  problemType:
-    | "definition"
-    | "computation"
-    | "word_problem";
+export type QuizPhase =
+  | 'setup'
+  | 'generating'
+  | 'answering'
+  | 'submitting'
+  | 'feedback'
+  | 'summary'
+  | 'error'
 
-  similarity:
-    | "similar"
-    | "different";
+export type SourceProfile = {
+  topics: string[]
+  concepts: string[]
+  styleNotes: string
+}
 
-  startingDifficulty: number;
-};
+export type QuizSettings = {
+  numQuestions: number
+  problemType: ProblemType
+  similarity: SimilarityLevel
+  startingDifficulty: Difficulty
+}
 
-type GenerateQuestionRequest = {
-  sourceProfile: SourceProfile;
+export type GenerateQuestionRequest = {
+  sourceProfile: SourceProfile
+  currentDifficulty: Difficulty
+  problemType: ProblemType
+  similarity: SimilarityLevel
+  previousQuestions: string[]
+  weakAreas: string[]
+}
 
-  currentDifficulty: number;
+// Shared API contract. Coordinate changes to these three response types
+// with the backend lead before merging.
+export type Question = {
+  id: string
+  question: string
+  hints: string[]
+  answer: string
+  solution: string
+  difficulty: Difficulty
+  concepts: string[]
+}
 
-  problemType:
-    | "definition"
-    | "computation"
-    | "word_problem";
+export type WorkSubmission = {
+  responseTimeSeconds: number
+  answerText?: string
+  whiteboardImageBase64?: string
+  uploadedWorkFileBase64?: string
+  hintsUsed: number
+}
 
-  similarity:
-    | "similar"
-    | "different";
+export type AnalyzeWorkRequest = {
+  question: Question
+  submission: WorkSubmission
+}
 
-  previousQuestions: string[];
+export type Feedback = {
+  correct: boolean
+  score: number
+  feedback: string
+  errorPatterns: string[]
+  strengths: string[]
+  suggestedNextStep: string
+  recommendedDifficulty: Difficulty
+}
 
-  weakAreas: string[];
-};
+export type SessionResult = {
+  question: Question
+  submission: WorkSubmission
+  feedback: Feedback
+}
 
-type Question = {
-  id: string;
+export type SummaryResponse = {
+  accuracy: number
+  averageResponseTimeSeconds: number
+  mostMissedConcepts: string[]
+  commonMistakes: string[]
+  strengths: string[]
+  suggestedNextSteps: string[]
+}
 
-  question: string;
-
-  hints: string[];
-
-  answer: string;
-
-  solution: string;
-
-  difficulty: number;
-
-  concepts: string[];
-};
-
-type AnalyzeWorkRequest = {
-  question: Question;
-
-  responseTimeSeconds: number;
-
-  whiteboardImageBase64?: string;
-
-  uploadedWorkFileBase64?: string;
-};
-
-type Feedback = {
-  correct: boolean;
-
-  feedback: string;
-
-  errorPattern: string;
-
-  suggestedNextStep: string;
-
-  recommendedDifficulty: number;
-};
-
-type SessionResult = {
-  question: Question;
-
-  feedback: Feedback;
-
-  responseTimeSeconds: number;
-};
-
-type SummaryRequest = {
-  results: SessionResult[];
-};
-
-type SummaryResponse = {
-  accuracy: number;
-
-  mostMissedConcepts: string[];
-
-  commonMistakes: string[];
-
-  strengths: string[];
-
-  suggestedNextSteps: string[];
-};
+export type QuizSessionState = {
+  phase: QuizPhase
+  settings: QuizSettings
+  sourceProfile: SourceProfile | null
+  currentQuestion: Question | null
+  currentDifficulty: Difficulty
+  questionHistory: Question[]
+  weakAreas: string[]
+  results: SessionResult[]
+  summary: SummaryResponse | null
+  elapsedSeconds: number
+  hintsUsed: number
+  visibleHints: string[]
+  error: string | null
+}
