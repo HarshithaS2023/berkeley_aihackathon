@@ -750,7 +750,7 @@ async def generate_question(body: QuestionRequest):
     }
 
     prompt = f"""
-Create one STEM quiz question for a student.
+Create one quiz question for a student.
 
 Topic: {body.topic}
 Difficulty: {body.difficulty}
