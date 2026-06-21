@@ -9,18 +9,23 @@ from dataclasses import dataclass
 from typing import AsyncIterator
 from typing import Literal
 
-import anthropic
-import httpx
-from anthropic import APIError
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
 
 # override=True ensures values in .env win over any shell variables
 # (e.g. a local Ollama setup exporting ANTHROPIC_MODEL / ANTHROPIC_BASE_URL).
 load_dotenv(override=True)
+
+from instrumentation import init_arize_tracing, is_arize_configured, shutdown_arize_tracing
+
+init_arize_tracing()
+
+import anthropic
+import httpx
+from anthropic import APIError
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
 
 # Force the Anthropic cloud API. We pass api_key and base_url explicitly so a
 # local proxy configured via ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN (Ollama)
@@ -104,6 +109,7 @@ async def lifespan(_app: FastAPI):
     if deepgram_http_client:
         await deepgram_http_client.aclose()
     deepgram_http_client = None
+    shutdown_arize_tracing()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -152,6 +158,7 @@ async def health():
         "model": MODEL,
         "base_url": BASE_URL,
         "deepgramConfigured": bool(DEEPGRAM_API_KEY),
+        "arizeConfigured": is_arize_configured(),
     }
 
 
