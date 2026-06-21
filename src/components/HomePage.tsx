@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import mascot from '../assets/hero.png'
+import mascot from '../assets/lamb-mascot.png'
 import { useQuizStore } from '../store/quizStore'
+import './HomePage.css'
 
 interface UploadedFile {
   name: string
@@ -9,88 +10,97 @@ interface UploadedFile {
   mimeType: string
 }
 
+const difficultyLevels = [
+  { label: 'Easy', value: 'easy', num: 1, description: 'Warm-up' },
+  { label: 'Medium', value: 'medium', num: 3, description: 'Balanced' },
+  { label: 'Hard', value: 'hard', num: 5, description: 'Challenge' },
+] as const
+
 export default function HomePage() {
   const [chatInput, setChatInput] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const navigate = useNavigate()
-
-  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
+  const [difficulty, setDifficulty] =
+    useState<(typeof difficultyLevels)[number]['value']>('medium')
   const [numQuestions, setNumQuestions] = useState(5)
   const [numQuestionsInput, setNumQuestionsInput] = useState('5')
   const [whiteboardGraded, setWhiteboardGraded] = useState(false)
-
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
-  const addUploadedFile = (f: UploadedFile) => setUploadedFiles((prev) => [...prev, f])
-  const removeUploadedFile = (name: string) => setUploadedFiles((prev) => prev.filter((f) => f.name !== name))
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const navigate = useNavigate()
 
-  const setSettings = useQuizStore((s) => s.setSettings)
-  const setSourceProfile = useQuizStore((s) => s.setSourceProfile)
-  const startQuiz = useQuizStore((s) => s.startQuiz)
-
-  const difficultyLevels: { label: string; value: 'easy' | 'medium' | 'hard'; num: number }[] = [
-    { label: 'Easy',   value: 'easy',   num: 1 },
-    { label: 'Medium', value: 'medium', num: 3 },
-    { label: 'Hard',   value: 'hard',   num: 5 },
-  ]
-
+  const setSettings = useQuizStore((state) => state.setSettings)
+  const setSourceProfile = useQuizStore((state) => state.setSourceProfile)
+  const startQuiz = useQuizStore((state) => state.startQuiz)
 
   const readFileAsBase64 = (file: File): Promise<UploadedFile> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => {
         const dataUrl = reader.result as string
-        resolve({ name: file.name, base64: dataUrl.split(',')[1], mimeType: file.type })
+        resolve({
+          name: file.name,
+          base64: dataUrl.split(',')[1],
+          mimeType: file.type,
+        })
       }
       reader.onerror = reject
       reader.readAsDataURL(file)
     })
 
   const processFiles = async (fileList: FileList | File[]) => {
-    const existing = new Set(uploadedFiles.map((f) => f.name))
+    const existing = new Set(uploadedFiles.map((file) => file.name))
+    const newFiles: UploadedFile[] = []
+
     for (const file of Array.from(fileList)) {
       if (!existing.has(file.name)) {
-        addUploadedFile(await readFileAsBase64(file))
+        newFiles.push(await readFileAsBase64(file))
       }
     }
+
+    setUploadedFiles((current) => [...current, ...newFiles])
+    if (newFiles.length) setError(null)
   }
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) await processFiles(e.target.files)
-    e.target.value = ''
-  }
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    if (e.dataTransfer.files) await processFiles(e.dataTransfer.files)
+  const setQuestionCount = (value: number) => {
+    const nextValue = Math.min(20, Math.max(1, value))
+    setNumQuestions(nextValue)
+    setNumQuestionsInput(String(nextValue))
   }
 
   const handleEnter = async () => {
     if (uploadedFiles.length === 0) {
-      setError('Please upload at least one study material.')
+      setError('Add at least one study file to create your quiz.')
       return
     }
+
     setError(null)
     setIsAnalyzing(true)
 
-    const selectedLevel = difficultyLevels.find((d) => d.value === difficulty)!
-    setSettings({ numQuestions, startingDifficulty: selectedLevel.num as 1 | 2 | 3 | 4 | 5 })
+    const selectedLevel = difficultyLevels.find(
+      (level) => level.value === difficulty,
+    )!
+    setSettings({
+      numQuestions,
+      startingDifficulty: selectedLevel.num,
+    })
 
     try {
-      const res = await fetch('http://localhost:3001/analyze-source', {
+      const response = await fetch('http://localhost:3001/analyze-source', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files: uploadedFiles }),
       })
-      if (res.ok) {
-        const data = await res.json()
+
+      if (response.ok) {
+        const data = await response.json()
         setSourceProfile({
           topics: data.topics ?? [],
           concepts: data.concepts ?? [],
-          styleNotes: data.styleNotes ?? (whiteboardGraded ? 'Grade whiteboard work.' : ''),
+          styleNotes:
+            data.styleNotes ??
+            (whiteboardGraded ? 'Grade whiteboard work.' : ''),
         })
       } else {
         setSourceProfile({ topics: [], concepts: [], styleNotes: '' })
@@ -99,310 +109,265 @@ export default function HomePage() {
       setSourceProfile({ topics: [], concepts: [], styleNotes: '' })
     }
 
-    void startQuiz()
+    await startQuiz()
     setIsAnalyzing(false)
     navigate('/quiz')
   }
 
   return (
-    <div className="h-full flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <main className="home">
+      <div className="home-glow home-glow-one" />
+      <div className="home-glow home-glow-two" />
 
-      {/* Header */}
-      <header
-        className="px-6 py-4 flex items-center gap-3"
-        style={{ borderBottom: '1px solid var(--border)' }}
-      >
-        <span className="text-xl font-bold tracking-tight" style={{ color: 'var(--text-h)' }}>
-          Professor X
-        </span>
-        <span className="text-sm" style={{ color: 'var(--text)' }}>— your personal tutor</span>
+      <header className="home-nav">
+        <a className="home-brand" href="/" aria-label="Learn+Grow home">
+          <span className="home-brand-mark">PX</span>
+          <span>
+            <strong>Learn+Grow</strong>
+            <small>Adaptive study partner</small>
+          </span>
+        </a>
+        <div className="home-nav-badge">
+          <span />
+          AI-powered practice
+        </div>
       </header>
 
-      {/* Mascot area — 3 columns: difficulty | mascot | spacer */}
-      <div className="flex-1 flex items-center px-8 gap-8">
-
-        {/* Left: controls */}
-        <div className="flex flex-col gap-5 w-44 flex-shrink-0">
-
-          {/* Difficulty */}
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text)' }}>
-              Difficulty
-            </p>
-            {difficultyLevels.map(({ label, value }) => {
-              const isSelected = difficulty === value
-              return (
-                <button
-                  key={value}
-                  onClick={() => setDifficulty(value)}
-                  style={{
-                    background: isSelected ? 'var(--accent)' : 'var(--bg)',
-                    color: isSelected ? '#fff' : 'var(--text-h)',
-                    border: isSelected ? '1px solid var(--accent-border)' : '1px solid var(--border)',
-                    borderRadius: '6px',
-                    padding: '8px 14px',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    fontWeight: isSelected ? 600 : 400,
-                    transition: 'all 0.15s',
-                    textAlign: 'left',
-                  }}
-                >
-                  {label}
-                </button>
-              )
-            })}
+      <section className="home-content">
+        <div className="home-hero">
+          <div className="home-kicker">
+            <span>✦</span>
+            Practice that learns with you
           </div>
+          <h1>
+            Turn your notes into
+            <em> smarter practice.</em>
+          </h1>
+          <p>
+            Upload homework, lecture notes, or a past test. Learn+Grow creates
+            an adaptive quiz around exactly what you’re learning.
+          </p>
 
-          {/* Number of questions */}
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text)' }}>
-              # of Questions
-            </p>
-            <div
-              className="flex items-center gap-1"
-              style={{
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                background: 'var(--bg)',
-                padding: '4px 8px',
-              }}
-            >
-              <button
-                onClick={() => { const n = Math.max(1, numQuestions - 1); setNumQuestions(n); setNumQuestionsInput(String(n)) }}
-                style={{ color: 'var(--text-h)', fontSize: '1.1rem', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
-              >−</button>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={numQuestionsInput}
-                onChange={(e) => setNumQuestionsInput(e.target.value)}
-                onBlur={() => {
-                  const v = parseInt(numQuestionsInput)
-                  const clamped = isNaN(v) ? 5 : Math.min(20, Math.max(1, v))
-                  setNumQuestions(clamped)
-                  setNumQuestionsInput(String(clamped))
-                }}
-                style={{
-                  width: '36px',
-                  textAlign: 'center',
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  color: 'var(--text-h)',
-                  fontSize: '0.95rem',
-                }}
-              />
-              <button
-                onClick={() => { const n = Math.min(20, numQuestions + 1); setNumQuestions(n); setNumQuestionsInput(String(n)) }}
-                style={{ color: 'var(--text-h)', fontSize: '1.1rem', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
-              >+</button>
+          <div className="home-benefits">
+            <div>
+              <span>01</span>
+              <p>Questions grounded in your material</p>
+            </div>
+            <div>
+              <span>02</span>
+              <p>Difficulty that adapts as you answer</p>
+            </div>
+            <div>
+              <span>03</span>
+              <p>Feedback based on your actual work</p>
             </div>
           </div>
 
-          {/* Whiteboard grading toggle */}
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text)' }}>
-              Whiteboard work graded
-            </p>
-            <button
-              onClick={() => setWhiteboardGraded((v) => !v)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-              aria-pressed={whiteboardGraded}
-            >
-              {/* Pill track */}
-              <div style={{
-                width: '44px',
-                height: '24px',
-                borderRadius: '12px',
-                background: whiteboardGraded ? 'var(--accent)' : 'var(--border)',
-                position: 'relative',
-                transition: 'background 0.2s',
-                flexShrink: 0,
-              }}>
-                {/* Thumb */}
-                <div style={{
-                  position: 'absolute',
-                  top: '3px',
-                  left: whiteboardGraded ? '23px' : '3px',
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '50%',
-                  background: '#fff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                  transition: 'left 0.2s',
-                }} />
-              </div>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-h)' }}>
-                {whiteboardGraded ? 'On' : 'Off'}
-              </span>
-            </button>
+          <div className="mascot-stage">
+            <div className="mascot-message">
+              <strong>Ready when you are.</strong>
+              <span>I’ll build the practice set.</span>
+            </div>
+            <div className="mascot-orbit mascot-orbit-one" />
+            <div className="mascot-orbit mascot-orbit-two" />
+            <img src={mascot} alt="Learn+Grow" />
           </div>
-
         </div>
 
-        {/* Center: mascot */}
-        <div className="flex-1 flex flex-col items-center gap-4">
-          {/* Speech bubble */}
-          <div
-            className="relative px-5 py-4 max-w-xs text-center"
-            style={{
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: '10px',
-              boxShadow: 'var(--shadow)',
-            }}
-          >
-            <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>
-              Hi! Upload your study materials below and tell me how many questions you want me to generate!
-            </p>
-            <div
-              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-              style={{
-                bottom: '-10px',
-                borderLeft: '10px solid transparent',
-                borderRight: '10px solid transparent',
-                borderTop: '10px solid var(--border)',
-              }}
-            />
-            <div
-              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-              style={{
-                bottom: '-8px',
-                borderLeft: '9px solid transparent',
-                borderRight: '9px solid transparent',
-                borderTop: '9px solid var(--bg)',
-              }}
-            />
+        <section className="quiz-builder" aria-labelledby="builder-title">
+          <div className="builder-heading">
+            <div>
+              <span className="builder-step">New session</span>
+              <h2 id="builder-title">Build your quiz</h2>
+            </div>
+            <span className="builder-time">Takes ~10 sec</span>
           </div>
 
-          <img src={mascot} alt="Professor X mascot" className="w-44 h-44 object-contain" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))' }} />
-        </div>
-
-        {/* Right spacer to keep mascot centered */}
-        <div className="w-44 flex-shrink-0" />
-
-      </div>
-
-      {/* Bottom bar — fixed height so it never grows with file count */}
-      <div
-        className="flex"
-        style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)', height: '100px', flexShrink: 0 }}
-      >
-        {/* Left: dropzone */}
-        <div
-          className="w-56 flex flex-col transition-colors"
-          style={{
-            borderRight: '1px solid var(--border)',
-            background: dragOver ? 'var(--accent-bg)' : 'var(--code-bg)',
-            borderLeft: dragOver ? '2px solid var(--accent-border)' : '2px solid transparent',
-          }}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-        >
-          {/* Scrollable file list */}
-          <div className="flex-1 overflow-y-auto px-3 pt-2" style={{ minHeight: 0 }}>
-            {uploadedFiles.length === 0 ? (
-              <p className="text-xs italic" style={{ color: 'var(--text)' }}>
-                Drop files or click +
-              </p>
-            ) : (
-              uploadedFiles.map((f) => (
-                <div
-                  key={f.name}
-                  className="flex items-center gap-1.5 text-xs group mb-1"
-                  style={{ color: 'var(--text-h)' }}
+          <div className="builder-section">
+            <div className="builder-label">
+              <span>1</span>
+              Choose a starting level
+            </div>
+            <div className="difficulty-options">
+              {difficultyLevels.map((level) => (
+                <button
+                  key={level.value}
+                  type="button"
+                  className={
+                    difficulty === level.value
+                      ? 'difficulty-option is-selected'
+                      : 'difficulty-option'
+                  }
+                  onClick={() => setDifficulty(level.value)}
                 >
-                  <svg width="13" height="15" viewBox="0 0 14 16" fill="none" style={{ flexShrink: 0 }}>
-                    <path d="M2 0h7l5 5v11H2V0z" fill="var(--code-bg)" stroke="var(--accent)" strokeWidth="1.2" strokeLinejoin="round" />
-                    <path d="M9 0v5h5" fill="none" stroke="var(--accent)" strokeWidth="1.2" strokeLinejoin="round" />
-                    <line x1="4" y1="8.5" x2="10" y2="8.5" stroke="var(--accent)" strokeWidth="1" strokeLinecap="round" />
-                    <line x1="4" y1="11" x2="8" y2="11" stroke="var(--accent)" strokeWidth="1" strokeLinecap="round" />
-                  </svg>
-                  <span className="truncate flex-1">{f.name}</span>
+                  <strong>{level.label}</strong>
+                  <small>{level.description}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="builder-row">
+            <div className="builder-section">
+              <div className="builder-label">
+                <span>2</span>
+                Questions
+              </div>
+              <div className="question-stepper">
+                <button
+                  type="button"
+                  onClick={() => setQuestionCount(numQuestions - 1)}
+                  aria-label="Decrease question count"
+                >
+                  −
+                </button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={numQuestionsInput}
+                  aria-label="Number of questions"
+                  onChange={(event) => setNumQuestionsInput(event.target.value)}
+                  onBlur={() =>
+                    setQuestionCount(Number.parseInt(numQuestionsInput) || 5)
+                  }
+                />
+                <span>questions</span>
+                <button
+                  type="button"
+                  onClick={() => setQuestionCount(numQuestions + 1)}
+                  aria-label="Increase question count"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="builder-section">
+              <div className="builder-label">
+                <span>3</span>
+                Grade whiteboard
+              </div>
+              <button
+                type="button"
+                className={
+                  whiteboardGraded
+                    ? 'whiteboard-toggle is-active'
+                    : 'whiteboard-toggle'
+                }
+                onClick={() => setWhiteboardGraded((value) => !value)}
+                aria-pressed={whiteboardGraded}
+              >
+                <span className="toggle-track">
+                  <span />
+                </span>
+                <strong>{whiteboardGraded ? 'On' : 'Off'}</strong>
+              </button>
+            </div>
+          </div>
+
+          <div className="builder-section">
+            <div className="builder-label">
+              <span>4</span>
+              Add your study material
+            </div>
+            <div
+              className={dragOver ? 'material-dropzone is-dragging' : 'material-dropzone'}
+              onDragOver={(event) => {
+                event.preventDefault()
+                setDragOver(true)
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(event) => {
+                event.preventDefault()
+                setDragOver(false)
+                void processFiles(event.dataTransfer.files)
+              }}
+            >
+              <button
+                type="button"
+                className="upload-icon"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Upload study materials"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
+                </svg>
+              </button>
+              <div>
+                <strong>Drop PDFs or images here</strong>
+                <span>
+                  or{' '}
                   <button
-                    onClick={() => removeUploadedFile(f.name)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-xs leading-none"
-                    style={{ color: 'var(--accent)' }}
-                    aria-label="Remove file"
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    ✕
+                    browse your files
                   </button>
-                </div>
-              ))
+                </span>
+              </div>
+              <small>PDF, PNG or JPG</small>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                multiple
+                hidden
+                onChange={(event) => {
+                  if (event.target.files) void processFiles(event.target.files)
+                  event.target.value = ''
+                }}
+              />
+            </div>
+
+            {uploadedFiles.length > 0 && (
+              <div className="uploaded-files">
+                {uploadedFiles.map((file) => (
+                  <div className="uploaded-file" key={file.name}>
+                    <span className="file-icon">✓</span>
+                    <span title={file.name}>{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setUploadedFiles((current) =>
+                          current.filter((item) => item.name !== file.name),
+                        )
+                      }
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* + button — always pinned at the bottom */}
-          <div className="px-3 pb-2 flex-shrink-0">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-10 h-10 flex items-center justify-center text-2xl font-light transition-opacity hover:opacity-80"
-              style={{
-                background: 'var(--accent)',
-                color: '#fff',
-                borderRadius: '6px',
-                border: '1px solid var(--accent-border)',
-              }}
-              aria-label="Upload study materials"
-              title="Upload study materials (PDF, image)"
-            >
-              +
-            </button>
-          </div>
+          <label className="quiz-instructions">
+            <span>Optional instructions</span>
+            <textarea
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              placeholder="e.g. Focus on the concepts I missed on page 2"
+              rows={2}
+            />
+          </label>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.png,.jpg,.jpeg"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-        </div>
+          {error && <p className="builder-error">{error}</p>}
 
-        {/* Center: chat input */}
-        <div className="flex-1 flex flex-col justify-center px-5" style={{ minWidth: 0 }}>
-          {error && (
-            <p className="text-xs mb-1" style={{ color: '#dc2626' }}>{error}</p>
-          )}
-          <input
-            type="text"
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleEnter()}
-            placeholder="How many questions? e.g. Give me 10 practice problems"
-            className="w-full outline-none text-sm bg-transparent"
-            style={{ color: 'var(--text-h)' }}
-          />
-        </div>
-
-        {/* Right: enter button */}
-        <div className="p-3 flex items-center" style={{ borderLeft: '1px solid var(--border)' }}>
           <button
-            onClick={handleEnter}
+            type="button"
+            className="generate-button"
             disabled={isAnalyzing}
-            className="w-12 h-12 flex items-center justify-center text-xl text-white transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{
-              background: 'var(--accent)',
-              border: '1px solid var(--accent-border)',
-              borderRadius: '6px',
-            }}
-            aria-label="Start session"
+            onClick={() => void handleEnter()}
           >
-            {isAnalyzing ? <span className="text-sm animate-pulse">…</span> : '→'}
+            <span>{isAnalyzing ? 'Building your quiz…' : 'Generate my quiz'}</span>
+            {!isAnalyzing && <span aria-hidden="true">→</span>}
           </button>
-        </div>
-      </div>
-    </div>
+          <p className="builder-footnote">
+            Your files are used only to create this practice session.
+          </p>
+        </section>
+      </section>
+    </main>
   )
 }
