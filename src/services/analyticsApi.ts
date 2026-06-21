@@ -26,10 +26,10 @@ export async function fetchAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
     throw new Error('Sign in to view your analytics.')
   }
 
+  // Load all sessions visible to this user (own only, or whole team if team RLS is enabled).
   const sessionsRes = await supabase
     .from('sessions')
     .select('id, created_at, accuracy, avg_time, num_questions, topics')
-    .eq('user_id', user.id)
     .order('created_at', { ascending: true })
 
   if (sessionsRes.error) {

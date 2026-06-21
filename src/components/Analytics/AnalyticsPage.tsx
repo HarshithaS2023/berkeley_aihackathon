@@ -4,7 +4,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -22,44 +21,84 @@ import PastQuestionsPanel from './PastQuestionsPanel'
 
 type AnalyticsViewMode = 'overview' | 'questions'
 
+type TooltipEntry = {
+  color?: string
+  name?: string
+  value?: number | string
+  dataKey?: string | number
+  payload?: Record<string, unknown>
+}
+
+function resolveTooltipValue(entry: TooltipEntry): number | null {
+  const key = entry.dataKey != null ? String(entry.dataKey) : ''
+  const row = entry.payload
+  if (row && key && typeof row[key] === 'number' && !Number.isNaN(row[key] as number)) {
+    return row[key] as number
+  }
+  if (typeof entry.value === 'number' && !Number.isNaN(entry.value)) {
+    return entry.value
+  }
+  return null
+}
+
+function formatTooltipSuffix(name: string, dataKey: string): string {
+  const key = `${name} ${dataKey}`.toLowerCase()
+  if (key.includes('time')) return 's'
+  if (key.includes('miss')) return ''
+  return '%'
+}
+
 function ChartTooltip({
   active,
   payload,
   label,
 }: {
   active?: boolean
-  payload?: { color: string; name: string; value: number }[]
+  payload?: TooltipEntry[]
   label?: string
 }) {
   if (!active || !payload?.length) return null
 
+  const items = payload
+    .map((entry) => {
+      const value = resolveTooltipValue(entry)
+      if (value == null) return null
+      const dataKey = String(entry.dataKey ?? entry.name ?? '')
+      return { entry, value, dataKey }
+    })
+    .filter((item): item is { entry: TooltipEntry; value: number; dataKey: string } => item !== null)
+
+  if (items.length === 0) return null
+
   return (
     <div className="analytics-chart-tooltip">
       <strong>{label}</strong>
-      {payload.map((entry) => (
-        <div key={entry.name}>
-          {entry.name}: {entry.value}
-          {entry.name.toLowerCase().includes('time') ? 's' : '%'}
+      {items.map(({ entry, value, dataKey }) => (
+        <div key={`${dataKey}-${entry.name}`} style={{ color: entry.color }}>
+          {entry.name}: {value}
+          {formatTooltipSuffix(String(entry.name ?? ''), dataKey)}
         </div>
       ))}
     </div>
   )
 }
 
-function pivotTopicTrends(topicTrends: TopicTrendPoint[]) {
-  const labels = [...new Set(topicTrends.map((point) => point.label))]
-  const topics = [...new Set(topicTrends.map((point) => point.topic))]
+function shortenLabel(text: string, max = 20): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`
+}
 
-  const rows = labels.map((label) => {
-    const row: Record<string, string | number> = { label }
-    for (const topic of topics) {
-      const match = topicTrends.find(
-        (point) => point.label === label && point.topic === topic,
-      )
-      if (match) row[topic] = match.accuracyPct
-    }
-    return row
-  })
+function pivotTopicTrends(topicTrends: TopicTrendPoint[]) {
+  const topics = [...new Set(topicTrends.map((point) => point.topic))].sort()
+
+  const rows = [...topicTrends]
+    .sort((a, b) => a.sessionIndex - b.sessionIndex)
+    .map((point) => {
+      const row: Record<string, string | number | null> = { label: point.label }
+      for (const topic of topics) {
+        row[topic] = topic === point.topic ? point.accuracyPct : null
+      }
+      return row
+    })
 
   return { rows, topics }
 }
@@ -103,15 +142,23 @@ function AnalyticsContent({ data }: { data: AnalyticsSnapshot }) {
           <h2>Accuracy over time</h2>
           <p>Each point is one completed quiz session.</p>
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={data.sessionTrend}>
+            <LineChart data={data.sessionTrend} margin={{ top: 8, right: 16, left: 4, bottom: 4 }}>
               <CartesianGrid stroke="rgba(92,108,73,0.12)" strokeDasharray="4 4" />
-              <XAxis dataKey="label" tick={{ fill: '#6c7462', fontSize: 12 }} />
+              <XAxis
+                dataKey="label"
+                tick={{ fill: '#6c7462', fontSize: 11 }}
+                interval={0}
+                angle={-20}
+                textAnchor="end"
+                height={56}
+              />
               <YAxis
                 domain={[0, 100]}
+                ticks={[0, 25, 50, 75, 100]}
                 tick={{ fill: '#6c7462', fontSize: 12 }}
                 tickFormatter={(value) => `${value}%`}
               />
-              <Tooltip content={<ChartTooltip />} />
+              <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(83,104,64,0.35)' }} />
               <Line
                 type="monotone"
                 dataKey="accuracyPct"
@@ -146,28 +193,43 @@ function AnalyticsContent({ data }: { data: AnalyticsSnapshot }) {
         <article className="analytics-card">
           <h2>Accuracy by subject</h2>
           <p>
-            Separate lines for each topic across sessions — look for dips where a
-            subject drops between quizzes.
+            One line per broad subject (Fractions, Calculus, History, etc.). Includes
+            sessions from everyone on your team when team analytics is enabled in Supabase.
           </p>
           <div className="analytics-legend">
             {topicChart.topics.map((topic, index) => (
-              <span className="analytics-legend-item" key={topic}>
+              <span className="analytics-legend-item" key={topic} title={topic}>
                 <i style={{ background: CHART_TOPIC_COLORS[index % CHART_TOPIC_COLORS.length] }} />
-                {topic}
+                {shortenLabel(topic, 24)}
               </span>
             ))}
           </div>
-          <ResponsiveContainer width="100%" height={320}>
-            <LineChart data={topicChart.rows}>
+          <ResponsiveContainer width="100%" height={360}>
+            <LineChart
+              data={topicChart.rows}
+              margin={{ top: 12, right: 20, left: 8, bottom: 8 }}
+            >
               <CartesianGrid stroke="rgba(92,108,73,0.12)" strokeDasharray="4 4" />
-              <XAxis dataKey="label" tick={{ fill: '#6c7462', fontSize: 12 }} />
+              <XAxis
+                dataKey="label"
+                tick={{ fill: '#6c7462', fontSize: 11 }}
+                interval={0}
+                angle={-20}
+                textAnchor="end"
+                height={56}
+              />
               <YAxis
                 domain={[0, 100]}
+                ticks={[0, 25, 50, 75, 100]}
                 tick={{ fill: '#6c7462', fontSize: 12 }}
                 tickFormatter={(value) => `${value}%`}
+                width={48}
               />
-              <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: '12px' }} />
+              <Tooltip
+                content={<ChartTooltip />}
+                shared={false}
+                cursor={{ stroke: 'rgba(83,104,64,0.35)' }}
+              />
               {topicChart.topics.map((topic, index) => (
                 <Line
                   key={topic}
@@ -177,7 +239,8 @@ function AnalyticsContent({ data }: { data: AnalyticsSnapshot }) {
                   stroke={CHART_TOPIC_COLORS[index % CHART_TOPIC_COLORS.length]}
                   strokeWidth={2.5}
                   connectNulls
-                  dot={{ r: 3 }}
+                  dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+                  activeDot={{ r: 6 }}
                 />
               ))}
             </LineChart>

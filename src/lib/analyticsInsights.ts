@@ -21,10 +21,102 @@ const TOPIC_COLORS = [
 
 export const CHART_TOPIC_COLORS = TOPIC_COLORS
 
+/** Accept accuracy stored as 0–1 ratio or 0–100 percent (legacy rows). */
+export function normalizeStoredAccuracyPct(accuracy: number): number {
+  if (!Number.isFinite(accuracy)) return 0
+  const pct = accuracy > 1 ? accuracy : accuracy * 100
+  return Math.round(Math.min(100, Math.max(0, pct)) * 10) / 10
+}
+
+function getSessionQuestions(questions: DbQuestion[], sessionId: string): DbQuestion[] {
+  return questions.filter((question) => question.session_id === sessionId)
+}
+
+function accuracyPercentFromQuestions(sessionQuestions: DbQuestion[]): number | null {
+  if (sessionQuestions.length === 0) return null
+  const correct = sessionQuestions.filter((question) => question.correct).length
+  return Math.round((correct / sessionQuestions.length) * 1000) / 10
+}
+
+function resolveSessionAccuracyPct(
+  session: DbSession,
+  sessionQuestions: DbQuestion[],
+): number {
+  const fromQuestions = accuracyPercentFromQuestions(sessionQuestions)
+  if (fromQuestions !== null) return fromQuestions
+  return normalizeStoredAccuracyPct(session.accuracy ?? 0)
+}
+
 function formatSessionLabel(dateIso: string, index: number): string {
   const date = new Date(dateIso)
   if (Number.isNaN(date.getTime())) return `Session ${index + 1}`
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const day = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  // Keep each session distinct even when several fall on the same calendar day.
+  return `${day} · ${index + 1}`
+}
+
+/** Map session content to a broad subject for the chart (one label per session). */
+function canonicalSubjectForSession(
+  session: DbSession,
+  sessionQuestions: DbQuestion[],
+): string {
+  const topics = (session.topics ?? []).map((topic) => topic.trim()).filter(Boolean)
+  const concepts = sessionQuestions.flatMap((question) => question.concepts ?? [])
+  const haystack = [...topics, ...concepts].join(' ').toLowerCase()
+  const topicText = topics.join(' ').toLowerCase()
+
+  const rules: { label: string; match: () => boolean }[] = [
+    {
+      label: 'Fractions',
+      match: () =>
+        /fraction|numerator|denominator|mixed number/i.test(haystack) ||
+        topics.some((topic) => /fraction/i.test(topic)),
+    },
+    {
+      label: 'World History',
+      match: () => /world history/i.test(haystack),
+    },
+    {
+      label: 'American History',
+      match: () => /american history|u\.?s\.? history/i.test(haystack),
+    },
+    {
+      label: 'Calculus',
+      match: () =>
+        /calculus|derivative|integral|differentiat|limit law|chain rule|power rule|product rule|quotient rule|one-sided limit|implicit differentiat/i.test(
+          haystack,
+        ) ||
+        (topics.length > 2 &&
+          /limit|deriv|differentiat|integral|calculus/i.test(topicText)),
+    },
+    {
+      label: 'Algebra',
+      match: () => /algebra|polynomial|quadratic|linear equation/i.test(haystack),
+    },
+    {
+      label: 'History',
+      match: () => /history|historical/i.test(haystack),
+    },
+    {
+      label: 'Physics',
+      match: () => /physics|kinematics|force|velocity|acceleration/i.test(haystack),
+    },
+    {
+      label: 'Chemistry',
+      match: () => /chemistry|chemical|molecule|stoichiometry/i.test(haystack),
+    },
+  ]
+
+  for (const rule of rules) {
+    if (rule.match()) return rule.label
+  }
+
+  if (topics.length > 0) return topics[0]
+
+  const concept = concepts.find((item) => item.trim())
+  if (concept) return concept.trim()
+
+  return 'General'
 }
 
 function formatFullDate(dateIso: string): string {
@@ -37,34 +129,42 @@ function formatFullDate(dateIso: string): string {
   })
 }
 
-function buildSessionTrend(sessions: DbSession[]): SessionTrendPoint[] {
-  return sessions.map((session, index) => ({
-    sessionId: session.id,
-    label: formatSessionLabel(session.created_at, index),
-    date: session.created_at,
-    accuracyPct: Math.round((session.accuracy ?? 0) * 1000) / 10,
-    avgTimeSec: session.avg_time ?? 0,
-    topics: session.topics?.length ? session.topics : ['General'],
-  }))
+function buildSessionTrend(
+  sessions: DbSession[],
+  questions: DbQuestion[],
+): SessionTrendPoint[] {
+  return sessions.map((session, index) => {
+    const sessionQuestions = getSessionQuestions(questions, session.id)
+    return {
+      sessionId: session.id,
+      label: formatSessionLabel(session.created_at, index),
+      date: session.created_at,
+      accuracyPct: resolveSessionAccuracyPct(session, sessionQuestions),
+      avgTimeSec: session.avg_time ?? 0,
+      topics: session.topics?.length ? session.topics : ['General'],
+    }
+  })
 }
 
-function buildTopicTrends(sessions: DbSession[]): TopicTrendPoint[] {
+function buildTopicTrends(
+  sessions: DbSession[],
+  questions: DbQuestion[],
+): TopicTrendPoint[] {
   const points: TopicTrendPoint[] = []
 
   sessions.forEach((session, sessionIndex) => {
-    const topics = session.topics?.length ? session.topics : ['General']
-    const accuracyPct = Math.round((session.accuracy ?? 0) * 1000) / 10
+    const sessionQuestions = getSessionQuestions(questions, session.id)
     const label = formatSessionLabel(session.created_at, sessionIndex)
+    const topic = canonicalSubjectForSession(session, sessionQuestions)
+    const accuracyPct = resolveSessionAccuracyPct(session, sessionQuestions)
 
-    for (const topic of topics) {
-      points.push({
-        topic,
-        label,
-        date: session.created_at,
-        accuracyPct,
-        sessionIndex,
-      })
-    }
+    points.push({
+      topic,
+      label,
+      date: session.created_at,
+      accuracyPct,
+      sessionIndex,
+    })
   })
 
   return points
@@ -301,15 +401,16 @@ export function buildAnalyticsSnapshot(
     }
   }
 
-  const sessionTrend = buildSessionTrend(sessions)
-  const topicTrends = buildTopicTrends(sessions)
+  const sessionTrend = buildSessionTrend(sessions, questions)
+  const topicTrends = buildTopicTrends(sessions, questions)
   const { topMissed, byAccuracy } = buildConceptStats(questions, mistakes)
 
   const overallAccuracyPct =
-    sessions.length > 0
+    sessionTrend.length > 0
       ? Math.round(
-          (sessions.reduce((sum, s) => sum + (s.accuracy ?? 0), 0) / sessions.length) *
-            1000,
+          (sessionTrend.reduce((sum, point) => sum + point.accuracyPct, 0) /
+            sessionTrend.length) *
+            10,
         ) / 10
       : 0
 
