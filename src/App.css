@@ -397,6 +397,33 @@ button:disabled {
   line-height: 1.5;
 }
 
+.feedback-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 13px 0;
+}
+
+.feedback-details > div {
+  padding: 9px 10px;
+  border: 1px solid rgba(171, 139, 76, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 254, 247, 0.7);
+}
+
+.feedback-details strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #8b6b32;
+  font-size: 0.56rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.feedback-details .feedback-detail-wide {
+  grid-column: 1 / -1;
+}
+
 .quiz-status {
   display: grid;
   min-height: 100%;
@@ -501,5 +528,13 @@ button:disabled {
 
   .feedback .quiz-primary {
     grid-column: 1 / -1;
+  }
+
+  .feedback-details {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-details .feedback-detail-wide {
+    grid-column: auto;
   }
 }

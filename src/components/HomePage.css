@@ -604,6 +604,13 @@
   box-shadow: 0 0 0 3px rgba(103, 137, 75, 0.1);
 }
 
+.quiz-instructions small {
+  color: #8b907f;
+  font-size: 0.61rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .builder-error {
   margin: -7px 0 12px;
   color: #a34d3d;

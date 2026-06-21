@@ -63,12 +63,19 @@ export type WorkSubmissionInput = Omit<WorkSubmission, 'responseTimeSeconds' | '
 export type AnalyzeWorkRequest = {
   question: Question
   submission: WorkSubmission
+  priorErrorPatterns: string[]
 }
 
 export type Feedback = {
   correct: boolean
   score: number
   feedback: string
+  submittedAnswer?: string
+  expectedAnswer: string
+  numericalDifference?: number
+  firstIncorrectStep?: string
+  conceptualGap?: string
+  repeatedPattern: boolean
   errorPatterns: string[]
   strengths: string[]
   suggestedNextStep: string

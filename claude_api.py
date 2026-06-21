@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import uuid as _uuid
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -133,7 +134,8 @@ class FileItem(BaseModel):
 
 
 class AnalyzeSourceRequest(BaseModel):
-    files: list[FileItem]
+    files: list[FileItem] = Field(default_factory=list)
+    instructions: str = ""
 
 
 @app.post("/analyze-source")
@@ -151,16 +153,23 @@ async def analyze_source(body: AnalyzeSourceRequest):
                 "source": {"type": "base64", "media_type": f.mimeType, "data": f.base64},
             })
 
-    if not content:
-        return {"topics": ["General"], "concepts": [], "styleNotes": ""}
+    instructions = body.instructions.strip()
+    if not content and not instructions:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one study file or quiz instructions.",
+        )
 
     content.append({
         "type": "text",
         "text": (
-            "Analyze this study material. Respond ONLY with valid JSON, no other text:\n"
+            "Analyze the provided study material and/or quiz instructions. "
+            "Use the instructions as the primary source when no file is attached.\n"
+            f"User quiz instructions: {instructions or 'None provided'}\n\n"
+            "Respond ONLY with valid JSON, no other text:\n"
             '{"topics": ["3-5 main topic names"], '
             '"concepts": ["5-10 key concepts, terms, or formulas"], '
-            '"styleNotes": "one sentence on the question style and difficulty level"}'
+            '"styleNotes": "one sentence describing the requested question content and style"}'
         ),
     })
 
@@ -244,8 +253,28 @@ async def generate_questions_batch(body: BatchQuestionRequest):
 class WorkSubmission(BaseModel):
     image_base64: str | None = None
     work_text: str | None = None
+    question: str
     correct_answer: str
-    prior_errors: list[str]
+    expected_solution: str = ""
+    prior_errors: list[str] = Field(default_factory=list)
+
+
+def parse_numeric_answer(value: str | None) -> float | None:
+    if not value:
+        return None
+
+    matches = re.findall(r"-?\$?\s*\d[\d,]*(?:\.\d+)?", value)
+    if not matches:
+        return None
+
+    try:
+        return float(matches[-1].replace("$", "").replace(",", "").replace(" ", ""))
+    except ValueError:
+        return None
+
+
+def format_number(value: float) -> str:
+    return str(int(value)) if value.is_integer() else f"{value:g}"
 
 
 @app.post("/analyze-work")
@@ -255,17 +284,23 @@ async def analyze_work(body: WorkSubmission):
 
     instructions = (
         "You are a warm, precise math tutor. Evaluate the student's work in ONE pass.\n\n"
+        f"Question: {body.question}\n"
         f"Correct answer: {body.correct_answer}\n"
+        f"Expected solution: {body.expected_solution or 'Not provided'}\n"
+        f"Student's typed final answer: {body.work_text or 'Not provided'}\n"
         f"Prior errors this session: {json.dumps(body.prior_errors)}\n\n"
-        "Look at the student's work below. Decide if their final answer is correct, "
-        "find where they diverged (if at all), check whether this repeats one of the "
-        "prior errors, and write feedback.\n\n"
+        "Treat the typed final answer as authoritative when provided. Use the image "
+        "to inspect intermediate work. Identify the first visible step that diverges "
+        "from the expected solution. Never invent a submitted answer or claim a "
+        "numerical difference; the server calculates numeric differences. If the "
+        "work is unreadable or no exact incorrect step is visible, say so plainly.\n\n"
         "Respond ONLY with valid JSON, no other text:\n"
         '{"correct": true/false, '
-        '"analysis": "specific explanation of where the work diverged, cite the step", '
+        '"submitted_answer": "typed answer, or final answer read from image", '
+        '"first_incorrect_step": "first incorrect step, or empty string", '
         '"is_repeated": true/false, '
         '"gap": "one sentence on the underlying concept gap", '
-        '"feedback": "warm Khan Academy-style feedback, 2-3 sentences"}'
+        '"feedback": "warm, specific feedback without unsupported arithmetic claims"}'
     )
 
     if body.image_base64:
@@ -281,7 +316,7 @@ async def analyze_work(body: WorkSubmission):
             {"type": "text", "text": instructions},
         ]
     else:
-        user_content = f"Student's work / answer:\n{body.work_text}\n\n{instructions}"
+        user_content = instructions
 
     try:
         response = await client.messages.create(
@@ -296,13 +331,39 @@ async def analyze_work(body: WorkSubmission):
         raise HTTPException(status_code=502, detail=f"Invalid model response: {exc}") from exc
 
     is_correct = bool(data.get("correct", False))
+    typed_answer = body.work_text.strip() if body.work_text else None
+    submitted_answer = typed_answer or str(data.get("submitted_answer", "")).strip()
+    submitted_number = parse_numeric_answer(submitted_answer)
+    expected_number = parse_numeric_answer(body.correct_answer)
+    numerical_difference = (
+        abs(expected_number - submitted_number)
+        if submitted_number is not None and expected_number is not None
+        else None
+    )
+
+    if typed_answer and submitted_number is not None and expected_number is not None:
+        is_correct = abs(expected_number - submitted_number) < 1e-9
+
+    feedback_text = str(data.get("feedback", "")).strip()
+    if numerical_difference is not None and not is_correct:
+        accurate_difference = format_number(numerical_difference)
+        feedback_text = re.sub(
+            r"off by\s+\$?\s*-?\d[\d,]*(?:\.\d+)?",
+            f"off by ${accurate_difference}",
+            feedback_text,
+            flags=re.IGNORECASE,
+        )
+
     return {
         "correct": is_correct,
         "error_found": not is_correct,
-        "error_type": data.get("analysis", ""),
+        "submitted_answer": submitted_answer,
+        "expected_answer": body.correct_answer,
+        "numerical_difference": numerical_difference,
+        "first_incorrect_step": data.get("first_incorrect_step", ""),
         "is_repeated_pattern": bool(data.get("is_repeated", False)),
         "conceptual_gap": data.get("gap", ""),
-        "feedback_text": data.get("feedback", ""),
+        "feedback_text": feedback_text,
     }
 
 

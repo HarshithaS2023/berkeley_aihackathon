@@ -167,6 +167,32 @@ function QuizScreen() {
               <div className="feedback-copy">
                 <span>{latestFeedback.correct ? 'Nicely done' : "Let's refine it"}</span>
                 <h2>{latestFeedback.feedback}</h2>
+                {!latestFeedback.correct && (
+                  <div className="feedback-details">
+                    {latestFeedback.submittedAnswer && (
+                      <div>
+                        <strong>Your answer</strong>
+                        <p>{latestFeedback.submittedAnswer}</p>
+                      </div>
+                    )}
+                    <div>
+                      <strong>Correct answer</strong>
+                      <p>{latestFeedback.expectedAnswer}</p>
+                    </div>
+                    {latestFeedback.numericalDifference !== undefined && (
+                      <div>
+                        <strong>Difference</strong>
+                        <p>{latestFeedback.numericalDifference}</p>
+                      </div>
+                    )}
+                    {latestFeedback.firstIncorrectStep && (
+                      <div className="feedback-detail-wide">
+                        <strong>First step to revisit</strong>
+                        <p>{latestFeedback.firstIncorrectStep}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p>{latestFeedback.suggestedNextStep}</p>
               </div>
               <button

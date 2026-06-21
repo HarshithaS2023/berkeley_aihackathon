@@ -86,16 +86,17 @@ export const httpQuizApi: QuizApi = {
 
   async analyzeWork(request) {
     const body: Record<string, unknown> = {
+      question: request.question.question,
       correct_answer: request.question.answer,
-      prior_errors: [],
+      expected_solution: request.question.solution,
+      work_text: request.submission.answerText,
+      prior_errors: request.priorErrorPatterns,
     }
-    if (request.submission.answerText) {
-      body.work_text = request.submission.answerText
-    } else if (request.submission.whiteboardImageBase64) {
+    if (request.submission.whiteboardImageBase64) {
       body.image_base64 = request.submission.whiteboardImageBase64
     } else if (request.submission.uploadedWorkFileBase64) {
       body.image_base64 = request.submission.uploadedWorkFileBase64
-    } else {
+    } else if (!request.submission.answerText) {
       body.work_text = '(no answer provided)'
     }
 
@@ -108,14 +109,27 @@ export const httpQuizApi: QuizApi = {
     const data = await res.json()
 
     const correct: boolean = data.correct ?? false
+    const conceptualGap: string = data.conceptual_gap ?? ''
+    const firstIncorrectStep: string = data.first_incorrect_step ?? ''
     return {
       correct,
       score: correct ? 1 : 0.35,
       feedback: data.feedback_text ?? '',
-      errorPatterns: !correct && data.conceptual_gap ? [data.conceptual_gap] : [],
+      submittedAnswer: data.submitted_answer || request.submission.answerText,
+      expectedAnswer: data.expected_answer ?? request.question.answer,
+      numericalDifference:
+        typeof data.numerical_difference === 'number'
+          ? data.numerical_difference
+          : undefined,
+      firstIncorrectStep: firstIncorrectStep || undefined,
+      conceptualGap: conceptualGap || undefined,
+      repeatedPattern: data.is_repeated_pattern ?? false,
+      errorPatterns: !correct
+        ? [conceptualGap, firstIncorrectStep].filter(Boolean)
+        : [],
       strengths: correct ? ['Correct answer and approach'] : [],
       suggestedNextStep: !correct
-        ? (data.conceptual_gap ?? 'Review the relevant concept and try again')
+        ? (conceptualGap || 'Review the relevant concept and try again')
         : 'Try a more challenging variation',
       recommendedDifficulty: request.question.difficulty,
     }

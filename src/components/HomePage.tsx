@@ -71,8 +71,10 @@ export default function HomePage() {
   }
 
   const handleEnter = async () => {
-    if (uploadedFiles.length === 0) {
-      setError('Add at least one study file to create your quiz.')
+    const instructions = chatInput.trim()
+
+    if (uploadedFiles.length === 0 && !instructions) {
+      setError('Upload a study file or add instructions for your quiz.')
       return
     }
 
@@ -82,6 +84,13 @@ export default function HomePage() {
     const selectedLevel = difficultyLevels.find(
       (level) => level.value === difficulty,
     )!
+    const fallbackStyleNotes = [
+      instructions,
+      whiteboardGraded ? 'Grade whiteboard work.' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+
     setSettings({
       numQuestions,
       startingDifficulty: selectedLevel.num,
@@ -91,23 +100,37 @@ export default function HomePage() {
       const response = await fetch(`${API_BASE}/analyze-source`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: uploadedFiles }),
+        body: JSON.stringify({ files: uploadedFiles, instructions }),
       })
 
       if (response.ok) {
         const data = await response.json()
+        const styleNotes = [
+          data.styleNotes,
+          instructions ? `Follow the user's instructions: ${instructions}` : '',
+          whiteboardGraded ? 'Grade whiteboard work.' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+
         setSourceProfile({
           topics: data.topics ?? [],
           concepts: data.concepts ?? [],
-          styleNotes:
-            data.styleNotes ??
-            (whiteboardGraded ? 'Grade whiteboard work.' : ''),
+          styleNotes,
         })
       } else {
-        setSourceProfile({ topics: [], concepts: [], styleNotes: '' })
+        setSourceProfile({
+          topics: instructions ? [instructions] : ['Uploaded study material'],
+          concepts: [],
+          styleNotes: fallbackStyleNotes,
+        })
       }
     } catch {
-      setSourceProfile({ topics: [], concepts: [], styleNotes: '' })
+      setSourceProfile({
+        topics: instructions ? [instructions] : ['Uploaded study material'],
+        concepts: [],
+        styleNotes: fallbackStyleNotes,
+      })
     }
 
     await startQuiz()
@@ -275,7 +298,7 @@ export default function HomePage() {
           <div className="builder-section">
             <div className="builder-label">
               <span>4</span>
-              Add your study material
+              Add study material (optional)
             </div>
             <div
               className={dragOver ? 'material-dropzone is-dragging' : 'material-dropzone'}
@@ -350,13 +373,20 @@ export default function HomePage() {
           </div>
 
           <label className="quiz-instructions">
-            <span>Optional instructions</span>
+            <span>Quiz instructions</span>
             <textarea
               value={chatInput}
-              onChange={(event) => setChatInput(event.target.value)}
-              placeholder="e.g. Focus on the concepts I missed on page 2"
+              onChange={(event) => {
+                setChatInput(event.target.value)
+                if (event.target.value.trim()) setError(null)
+              }}
+              placeholder="e.g. Create a quiz about derivatives using product and chain rules"
               rows={2}
             />
+            <small>
+              Add instructions, upload a file, or use both. At least one is
+              required.
+            </small>
           </label>
 
           {error && <p className="builder-error">{error}</p>}
@@ -371,7 +401,8 @@ export default function HomePage() {
             {!isAnalyzing && <span aria-hidden="true">→</span>}
           </button>
           <p className="builder-footnote">
-            Your files are used only to create this practice session.
+            Your files and instructions are used only to create this practice
+            session.
           </p>
         </section>
       </section>
