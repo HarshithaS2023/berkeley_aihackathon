@@ -557,6 +557,39 @@ class LivePeekRequest(BaseModel):
     correct_answer: str | None = None
 
 
+def normalize_live_advice(value: str) -> str:
+    text = re.sub(r"[*_`#]+", "", value).strip()
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    narration_markers = (
+        "the image",
+        "image appears",
+        "i can see",
+        "it appears",
+        "the whiteboard shows",
+        "work isn't visible",
+        "work is not visible",
+        "encourage them",
+    )
+    useful = [
+        sentence
+        for sentence in sentences
+        if sentence and not any(marker in sentence.lower() for marker in narration_markers)
+    ]
+    text = " ".join(useful).strip()
+    replacements = (
+        (r"\b[Tt]he student\b", "you"),
+        (r"\b[Ss]tudent\b", "you"),
+        (r"\b[Tt]hey\b", "you"),
+        (r"\b[Tt]heir\b", "your"),
+        (r"\b[Tt]hem\b", "you"),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text)
+    if text:
+        text = text[0].upper() + text[1:]
+    return text
+
+
 def build_work_analysis_content(body: WorkSubmission):
     if not body.work_text and not body.image_base64:
         raise HTTPException(status_code=400, detail="Provide image_base64 or work_text.")
@@ -643,20 +676,26 @@ def normalize_work_analysis(data: dict, body: WorkSubmission) -> dict:
 @app.post("/live-peek")
 async def live_peek(body: LivePeekRequest):
     prompt = (
-        "Student is mid-work on a whiteboard for this question:\n"
+        "You are giving live coaching directly to a learner working on this question:\n"
         f"{body.question}\n\n"
-        "Look for major conceptual errors, sign errors, arithmetic errors, etc."
-        "Give ONE concise summary if the student is on the right track or not."
-        "Do not second-guess yourself."
-        "Do not reveal the answer or final result."
+        "Inspect the whiteboard for conceptual, sign, arithmetic, or setup errors. "
+        "Address the learner only as 'you' or 'your'—never say 'the student'. "
+        "Do not describe the image, handwriting, visibility, or what you are thinking. "
+        "Do not say phrases like 'the image shows', 'I can see', or 'it appears'. "
+        "Give only useful coaching or a next action. If work has barely started, give "
+        "a concrete first step tied to the problem instead of commenting that no work "
+        "is visible. Do not reveal the answer or final result.\n\n"
+        "Return ONLY valid JSON with this shape:\n"
+        '{"advice":"one or two direct, specific coaching sentences",'
+        '"spoken_advice":"one calm actionable sentence of at most 12 words"}'
     )
     if body.correct_answer:
-        prompt += "\nUse the correct answer only to avoid misleading them; do not reveal it."
+        prompt += "\nUse the correct answer only to avoid misleading the learner; do not reveal it."
 
     try:
         response = await client.messages.create(
             model=MODEL,
-            max_tokens=60,
+            max_tokens=140,
             messages=[
                 {
                     "role": "user",
@@ -674,9 +713,19 @@ async def live_peek(body: LivePeekRequest):
                 }
             ],
         )
-        return {"peek": response.content[0].text.strip()}
+        data = parse_json_object(response.content[0].text, "live-peek")
+        advice = normalize_live_advice(str(data.get("advice", "")))
+        spoken_advice = normalize_live_advice(str(data.get("spoken_advice", "")))
+        if not advice:
+            advice = "Begin by identifying the quantities and how they are connected."
+        return {
+            "peek": advice,
+            "spoken": spoken_advice or advice.split(".")[0].strip(),
+        }
     except APIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=502, detail=f"Invalid live feedback: {exc}") from exc
 
 
 @app.post("/analyze-work")

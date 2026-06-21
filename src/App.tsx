@@ -58,12 +58,14 @@ const revealHint = useQuizStore((state) => state.revealHint)
   const {
     speak,
     stop,
+    unlockAudio,
     prefetch,
     isTextReady,
     speed,
     setSpeed,
     isSpeaking,
     isLoading,
+    isAudioUnlocked,
     error: ttsError,
   } = useTts()
 
@@ -215,6 +217,10 @@ const revealHint = useQuizStore((state) => state.revealHint)
               <WorkPanel
                 question={currentQuestion}
                 onShowHint={handleShowHint}
+                onSpeak={speak}
+                onStopSpeaking={stop}
+                onEnableVoice={unlockAudio}
+                audioUnlocked={isAudioUnlocked}
                 onSubmitWork={(work) =>
                   void submitCurrentQuestion({
                     ...work,

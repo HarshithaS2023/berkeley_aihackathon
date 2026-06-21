@@ -16,6 +16,7 @@ function snapshotKey(base64: string): string {
 
 export function useLivePeek({ whiteboardRef, question, enabled }: UseLivePeekOptions) {
   const [peek, setPeek] = useState('')
+  const [spoken, setSpoken] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [changeCount, setChangeCount] = useState(0)
@@ -27,10 +28,14 @@ export function useLivePeek({ whiteboardRef, question, enabled }: UseLivePeekOpt
   }, [])
 
   useEffect(() => {
-    setPeek('')
-    setError(null)
     lastSnapshotRef.current = ''
     lastPeekAtRef.current = 0
+    const resetFeedback = window.setTimeout(() => {
+      setPeek('')
+      setSpoken('')
+      setError(null)
+    }, 0)
+    return () => window.clearTimeout(resetFeedback)
   }, [question?.id])
 
   useEffect(() => {
@@ -61,6 +66,7 @@ export function useLivePeek({ whiteboardRef, question, enabled }: UseLivePeekOpt
               question.answer,
             )
             setPeek(response.peek)
+            setSpoken(response.spoken)
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Live feedback is unavailable.')
           } finally {
@@ -73,5 +79,5 @@ export function useLivePeek({ whiteboardRef, question, enabled }: UseLivePeekOpt
     return () => window.clearTimeout(timeout)
   }, [changeCount, enabled, question, whiteboardRef])
 
-  return { peek, error, loading, notifyChange }
+  return { peek, spoken, error, loading, notifyChange }
 }

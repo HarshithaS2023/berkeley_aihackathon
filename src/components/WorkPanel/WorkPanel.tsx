@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLivePeek } from '../../hooks/useLivePeek'
 import type { Question, WorkSubmissionInput } from '../../types'
 import { getWorkSubmission } from '../../lib/workSubmission'
@@ -7,11 +7,16 @@ import { WorkUpload } from '../Upload/WorkUpload'
 import './WorkPanel.css'
 
 const LIVE_FEEDBACK_VISIBILITY_KEY = 'learn-grow-live-feedback-visible'
+const LIVE_FEEDBACK_VOICE_KEY = 'learn-grow-live-feedback-voice'
 
 type WorkPanelProps = {
   question: Question | null
   onSubmitWork: (work: WorkSubmissionInput) => void | Promise<void>
   onShowHint?: () => void
+  onSpeak?: (text: string) => void | Promise<void>
+  onStopSpeaking?: () => void
+  onEnableVoice?: () => boolean | Promise<boolean>
+  audioUnlocked?: boolean
   disabled?: boolean
   submitting?: boolean
 }
@@ -20,6 +25,10 @@ export function WorkPanel({
   question,
   onSubmitWork,
   onShowHint,
+  onSpeak,
+  onStopSpeaking,
+  onEnableVoice,
+  audioUnlocked = false,
   disabled,
   submitting = false,
 }: WorkPanelProps) {
@@ -30,6 +39,12 @@ export function WorkPanel({
   const [showLiveFeedback, setShowLiveFeedback] = useState(
     () => localStorage.getItem(LIVE_FEEDBACK_VISIBILITY_KEY) !== 'false',
   )
+  const [voiceEnabled, setVoiceEnabled] = useState(
+    () =>
+      audioUnlocked &&
+      localStorage.getItem(LIVE_FEEDBACK_VOICE_KEY) === 'true',
+  )
+  const lastSpokenFeedbackRef = useRef('')
 
   const isBusy = disabled || submitting || isSubmitting
   const livePeek = useLivePeek({
@@ -38,12 +53,45 @@ export function WorkPanel({
     enabled: showLiveFeedback && !isBusy && !workFile,
   })
 
+  useEffect(() => {
+    const spoken = livePeek.spoken.trim()
+    if (
+      !voiceEnabled ||
+      !showLiveFeedback ||
+      !spoken ||
+      spoken === lastSpokenFeedbackRef.current ||
+      !onSpeak
+    ) {
+      return
+    }
+
+    lastSpokenFeedbackRef.current = spoken
+    void onSpeak(spoken)
+  }, [livePeek.spoken, onSpeak, showLiveFeedback, voiceEnabled])
+
   function toggleLiveFeedback() {
     setShowLiveFeedback((visible) => {
       const next = !visible
       localStorage.setItem(LIVE_FEEDBACK_VISIBILITY_KEY, String(next))
+      if (!next) onStopSpeaking?.()
       return next
     })
+  }
+
+  async function toggleVoiceFeedback() {
+    if (voiceEnabled) {
+      localStorage.setItem(LIVE_FEEDBACK_VOICE_KEY, 'false')
+      setVoiceEnabled(false)
+      onStopSpeaking?.()
+      return
+    }
+
+    const enabled = (await onEnableVoice?.()) ?? true
+    if (!enabled) return
+
+    lastSpokenFeedbackRef.current = ''
+    localStorage.setItem(LIVE_FEEDBACK_VOICE_KEY, 'true')
+    setVoiceEnabled(true)
   }
 
   async function handleSubmit() {
@@ -101,9 +149,19 @@ export function WorkPanel({
                 <span className="coach-status-dot" />
                 <strong>Live feedback</strong>
               </div>
-              <button type="button" onClick={toggleLiveFeedback}>
-                Hide
-              </button>
+              <div className="work-panel-coach-controls">
+                <button
+                  type="button"
+                  className={voiceEnabled ? 'coach-voice is-active' : 'coach-voice'}
+                  aria-pressed={voiceEnabled}
+                  onClick={() => void toggleVoiceFeedback()}
+                >
+                  {voiceEnabled ? 'Voice on' : 'Voice off'}
+                </button>
+                <button type="button" onClick={toggleLiveFeedback}>
+                  Hide
+                </button>
+              </div>
             </div>
             <div className="work-panel-coach-copy">
               <p>
