@@ -151,7 +151,9 @@ export default function HomePage() {
 
       <header className="home-nav">
         <a className="home-brand" href="/" aria-label="Learn+Grow home">
-          <span className="home-brand-mark">L+G</span>
+          <span className="home-brand-mark">
+            <img src={mascot} alt="" />
+          </span>
           <span>
             <strong>Learn+Grow</strong>
             <small>Adaptive study partner</small>
@@ -196,7 +198,7 @@ export default function HomePage() {
           <div className="mascot-stage">
             <div className="mascot-message">
               <strong>Ready when you are.</strong>
-              <span>I'll build the practice set.</span>
+              <span>I'll build the practice test.</span>
             </div>
             <div className="mascot-orbit mascot-orbit-one" />
             <div className="mascot-orbit mascot-orbit-two" />

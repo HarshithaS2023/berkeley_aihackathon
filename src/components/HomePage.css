@@ -65,14 +65,18 @@
   width: 42px;
   height: 42px;
   place-items: center;
+  overflow: hidden;
   border: 1px solid rgba(69, 91, 54, 0.28);
   border-radius: 13px;
-  color: #fff;
   background: linear-gradient(145deg, #78945f, #48653d);
   box-shadow: 0 9px 20px rgba(68, 91, 54, 0.24);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+}
+
+.home-brand-mark img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(64, 75, 45, 0.18));
 }
 
 .home-brand > span:last-child {
@@ -126,7 +130,7 @@
 
 .home-hero {
   position: relative;
-  padding-bottom: 180px;
+  padding-bottom: 0;
 }
 
 .home-kicker {
@@ -204,8 +208,8 @@
 
 .mascot-stage {
   position: absolute;
-  right: 4%;
-  bottom: 0;
+  right: -60px;
+  top: 210px;
   display: grid;
   width: 230px;
   height: 180px;
@@ -224,8 +228,8 @@
 .mascot-message {
   position: absolute;
   z-index: 3;
-  top: 0;
-  left: -80px;
+  top: -43px;
+  left: 0;
   display: grid;
   min-width: 180px;
   padding: 11px 14px;
