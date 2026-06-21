@@ -1,6 +1,12 @@
 export type Difficulty = 1 | 2 | 3 | 4 | 5
 
-export type ProblemType = 'definition' | 'computation' | 'word_problem'
+export type ProblemType =
+  | 'definition'
+  | 'computation'
+  | 'word_problem'
+  | 'multiple_choice'
+  | 'short_answer'
+  | 'mixed'
 
 export type SimilarityLevel =
   | 'very_similar'
@@ -48,6 +54,7 @@ export type Question = {
   solution: string
   difficulty: Difficulty
   concepts: string[]
+  options?: string[]
 }
 
 export type WorkSubmission = {

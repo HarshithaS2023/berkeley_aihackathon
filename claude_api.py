@@ -255,10 +255,19 @@ async def analyze_source(body: AnalyzeSourceRequest):
             "Analyze the provided study material and/or quiz instructions. "
             "Use the instructions as the primary source when no file is attached.\n"
             f"User quiz instructions: {instructions or 'None provided'}\n\n"
+            "Also detect the dominant question format used in the material. "
+            "Choose the single best match from: "
+            "multiple_choice (A/B/C/D options), short_answer (direct brief answers), "
+            "computation (pure numerical/calculation, no story), "
+            "word_problem (applied story problems), definition (define or explain terms), "
+            "mixed (clearly multiple formats present). "
+            "If instructions say 'simulate', 'like this', 'same format', or 'practice test', "
+            "prioritise matching the uploaded material's format exactly.\n\n"
             "Respond ONLY with valid JSON, no other text:\n"
             '{"topics": ["3-5 main topic names"], '
             '"concepts": ["5-10 key concepts, terms, or formulas"], '
-            '"styleNotes": "one sentence describing the requested question content and style"}'
+            '"styleNotes": "one sentence describing the requested question content and style", '
+            '"questionFormat": "multiple_choice | short_answer | computation | word_problem | definition | mixed"}'
         ),
     })
 
@@ -317,9 +326,49 @@ _QUESTION_JSON_RULES = (
 )
 
 
+_FORMAT_INSTRUCTIONS: dict[str, tuple[str, str]] = {
+    # (prompt instruction, json shape)
+    "multiple_choice": (
+        "Write each question as multiple choice with exactly 4 options labeled A, B, C, D. "
+        "'question' is the stem only (no options inline). "
+        "'options' is an array of 4 strings each starting with 'A. ', 'B. ', 'C. ', 'D. '. "
+        "'answer' is ONLY the correct letter (e.g. 'C'). Make distractors plausible.",
+        '[{"question":"...","options":["A. ...","B. ...","C. ...","D. ..."],'
+        '"hints":["hint"],"answer":"B","solution":"brief explanation","concepts":["c1"]}]',
+    ),
+    "short_answer": (
+        "Write direct short-answer questions — no story context, ask the concept plainly. "
+        "'answer' is a concise 1-2 sentence response.",
+        '[{"question":"...","hints":["hint"],"answer":"...","solution":"brief steps","concepts":["c1"]}]',
+    ),
+    "computation": (
+        "Write pure numerical/calculation problems. State numbers and operations directly, no narrative. "
+        "'answer' must be the exact numerical result with units if applicable.",
+        '[{"question":"...","hints":["hint"],"answer":"...","solution":"brief steps","concepts":["c1"]}]',
+    ),
+    "word_problem": (
+        "Write applied word problems with a real-world scenario. "
+        "'answer' must be the exact final answer with units.",
+        '[{"question":"...","hints":["hint"],"answer":"...","solution":"brief steps","concepts":["c1"]}]',
+    ),
+    "definition": (
+        "Write definition or explanation questions (e.g. 'Define X', 'What does Y mean?'). "
+        "'answer' is a clear, concise definition.",
+        '[{"question":"...","hints":["hint"],"answer":"...","solution":"brief steps","concepts":["c1"]}]',
+    ),
+    "mixed": (
+        "Vary formats across questions: mix short-answer, computation, and word problems. "
+        "Do NOT use multiple choice in mixed format.",
+        '[{"question":"...","hints":["hint"],"answer":"...","solution":"brief steps","concepts":["c1"]}]',
+    ),
+}
+
+
 def build_question_prompt(body: BatchQuestionRequest) -> str:
     difficulty_label = _DIFFICULTY_LABEL.get(body.difficulty, "medium")
     avoid = json.dumps(body.previous_questions[:10]) if body.previous_questions else "none"
+    fmt = body.problem_type if body.problem_type in _FORMAT_INSTRUCTIONS else "word_problem"
+    format_instruction, json_shape = _FORMAT_INSTRUCTIONS[fmt]
 
     return (
         f"Generate exactly {body.count} distinct quiz questions for a student.\n\n"
@@ -327,20 +376,21 @@ def build_question_prompt(body: BatchQuestionRequest) -> str:
         f"Key concepts: {', '.join(body.concepts) or 'as appropriate'}\n"
         f"Style notes: {body.style_notes or 'standard questions'}\n"
         f"Difficulty: {difficulty_label}\n"
-        f"Problem type: {body.problem_type.replace('_', ' ')}\n"
+        f"Format: {format_instruction}\n"
         f"Weak areas to reinforce: {', '.join(body.weak_areas) if body.weak_areas else 'none yet'}\n"
         f"Do NOT repeat these already-asked questions: {avoid}\n\n"
         f"{_QUESTION_JSON_RULES}\n"
         f"Return exactly {body.count} objects in this shape:\n"
-        '[{"question":"...","hints":["one hint"],"answer":"...","solution":"brief steps","concepts":["concept1"]}]'
+        f"{json_shape}"
     )
 
 
 def normalize_questions(items: list, body: BatchQuestionRequest) -> list[dict]:
     if not items:
         raise ValueError("Model returned an empty question list")
-    return [
-        {
+    result = []
+    for item in items[: body.count]:
+        q: dict = {
             "id": str(_uuid.uuid4()),
             "question": item["question"],
             "hints": item.get("hints", []),
@@ -349,8 +399,10 @@ def normalize_questions(items: list, body: BatchQuestionRequest) -> list[dict]:
             "difficulty": body.difficulty,
             "concepts": item.get("concepts", body.concepts[:2]),
         }
-        for item in items[: body.count]
-    ]
+        if "options" in item and isinstance(item["options"], list) and len(item["options"]) == 4:
+            q["options"] = item["options"]
+        result.append(q)
+    return result
 
 
 def question_request_with_count(body: BatchQuestionRequest, count: int) -> BatchQuestionRequest:

@@ -166,21 +166,46 @@ export default function CompetitionQuiz() {
 
             {!isFeedback && (
               <div className="quiz-answer-area">
-                <label className="final-answer">
-                  <span>Final answer <small>optional</small></span>
-                  <input
-                    value={answerText}
-                    onChange={(e) => setAnswerText(e.target.value)}
-                    placeholder="Type your final answer here"
-                  />
-                </label>
-                <WorkPanel
-                  question={currentQuestion}
-                  onShowHint={hintsUsed < currentQuestion.hints.length ? () => revealHint() : undefined}
-                  onSubmitWork={(work) =>
-                    void submitCurrentQuestion({ ...work, answerText: answerText.trim() || undefined })
-                  }
-                />
+                {currentQuestion.options ? (
+                  <div className="mc-options">
+                    {currentQuestion.options.map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        className={`mc-option${answerText === opt[0] ? ' mc-option--selected' : ''}`}
+                        onClick={() => setAnswerText(opt[0])}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="quiz-primary mc-submit"
+                      disabled={!answerText}
+                      onClick={() => void submitCurrentQuestion({ answerText: answerText || undefined })}
+                    >
+                      Submit answer <span aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <label className="final-answer">
+                      <span>Final answer <small>optional</small></span>
+                      <input
+                        value={answerText}
+                        onChange={(e) => setAnswerText(e.target.value)}
+                        placeholder="Type your final answer here"
+                      />
+                    </label>
+                    <WorkPanel
+                      question={currentQuestion}
+                      onShowHint={hintsUsed < currentQuestion.hints.length ? () => revealHint() : undefined}
+                      onSubmitWork={(work) =>
+                        void submitCurrentQuestion({ ...work, answerText: answerText.trim() || undefined })
+                      }
+                    />
+                  </>
+                )}
               </div>
             )}
 

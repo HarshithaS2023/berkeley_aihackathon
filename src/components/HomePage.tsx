@@ -4,7 +4,12 @@ import mascot from '../assets/lamb-mascot.png'
 import { useAuth } from '../contexts/AuthContext'
 import { API_BASE } from '../lib/apiBase'
 import { useQuizStore } from '../store/quizStore'
+import type { ProblemType } from '../types'
 import './HomePage.css'
+
+const VALID_FORMATS: ProblemType[] = [
+  'multiple_choice', 'short_answer', 'computation', 'word_problem', 'definition', 'mixed',
+]
 
 interface UploadedFile {
   name: string
@@ -73,6 +78,44 @@ export default function HomePage() {
     setNumQuestionsInput(String(nextValue))
   }
 
+  async function callAnalyzeSource(instructions: string) {
+    const response = await fetch(`${API_BASE}/analyze-source`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: uploadedFiles, instructions }),
+    })
+    if (!response.ok) return null
+    return response.json() as Promise<{
+      topics?: string[]
+      concepts?: string[]
+      styleNotes?: string
+      questionFormat?: string
+    }>
+  }
+
+  function applySourceData(
+    data: { topics?: string[]; concepts?: string[]; styleNotes?: string; questionFormat?: string } | null,
+    instructions: string,
+    extraNotes: string[] = [],
+  ) {
+    if (data) {
+      const detectedFormat = VALID_FORMATS.includes(data.questionFormat as ProblemType)
+        ? (data.questionFormat as ProblemType)
+        : 'word_problem'
+      const styleNotes = [data.styleNotes, instructions ? `Follow the user's instructions: ${instructions}` : '', ...extraNotes]
+        .filter(Boolean).join(' ')
+      setSettings({ problemType: detectedFormat })
+      setSourceProfile({ topics: data.topics ?? [], concepts: data.concepts ?? [], styleNotes })
+    } else {
+      const fallback = [instructions, ...extraNotes].filter(Boolean).join(' ')
+      setSourceProfile({
+        topics: instructions ? [instructions] : ['Uploaded study material'],
+        concepts: [],
+        styleNotes: fallback,
+      })
+    }
+  }
+
   const handleChallenge = async () => {
     const instructions = chatInput.trim()
     if (uploadedFiles.length === 0 && !instructions) {
@@ -83,30 +126,13 @@ export default function HomePage() {
     setIsAnalyzing(true)
 
     const selectedLevel = difficultyLevels.find((level) => level.value === difficulty)!
-    const fallbackStyleNotes = [instructions, whiteboardGraded ? 'Grade whiteboard work.' : '']
-      .filter(Boolean).join(' ')
-
     setSettings({ numQuestions, startingDifficulty: selectedLevel.num })
 
     try {
-      const response = await fetch(`${API_BASE}/analyze-source`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: uploadedFiles, instructions }),
-      })
-      if (response.ok) {
-        const data = await response.json()
-        const styleNotes = [
-          data.styleNotes,
-          instructions ? `Follow the user's instructions: ${instructions}` : '',
-          whiteboardGraded ? 'Grade whiteboard work.' : '',
-        ].filter(Boolean).join(' ')
-        setSourceProfile({ topics: data.topics ?? [], concepts: data.concepts ?? [], styleNotes })
-      } else {
-        setSourceProfile({ topics: instructions ? [instructions] : ['Uploaded study material'], concepts: [], styleNotes: fallbackStyleNotes })
-      }
+      const data = await callAnalyzeSource(instructions)
+      applySourceData(data, instructions, whiteboardGraded ? ['Grade whiteboard work.'] : [])
     } catch {
-      setSourceProfile({ topics: instructions ? [instructions] : ['Uploaded study material'], concepts: [], styleNotes: fallbackStyleNotes })
+      applySourceData(null, instructions, whiteboardGraded ? ['Grade whiteboard work.'] : [])
     }
 
     setIsAnalyzing(false)
@@ -124,50 +150,14 @@ export default function HomePage() {
     setError(null)
     setIsAnalyzing(true)
 
-    const selectedLevel = difficultyLevels.find(
-      (level) => level.value === difficulty,
-    )!
-    const fallbackStyleNotes = instructions
-
-    setSettings({
-      numQuestions,
-      startingDifficulty: selectedLevel.num,
-    })
+    const selectedLevel = difficultyLevels.find((level) => level.value === difficulty)!
+    setSettings({ numQuestions, startingDifficulty: selectedLevel.num })
 
     try {
-      const response = await fetch(`${API_BASE}/analyze-source`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: uploadedFiles, instructions }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const styleNotes = [
-          data.styleNotes,
-          instructions ? `Follow the user's instructions: ${instructions}` : '',
-        ]
-          .filter(Boolean)
-          .join(' ')
-
-        setSourceProfile({
-          topics: data.topics ?? [],
-          concepts: data.concepts ?? [],
-          styleNotes,
-        })
-      } else {
-        setSourceProfile({
-          topics: instructions ? [instructions] : ['Uploaded study material'],
-          concepts: [],
-          styleNotes: fallbackStyleNotes,
-        })
-      }
+      const data = await callAnalyzeSource(instructions)
+      applySourceData(data, instructions)
     } catch {
-      setSourceProfile({
-        topics: instructions ? [instructions] : ['Uploaded study material'],
-        concepts: [],
-        styleNotes: fallbackStyleNotes,
-      })
+      applySourceData(null, instructions)
     }
 
     warmQuestionQueue(numQuestions)
