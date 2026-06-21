@@ -68,7 +68,8 @@ export function useTts() {
   const prefetch = useCallback((text: string) => {
     const trimmed = text.trim()
     if (!trimmed || !prepareTextForSpeech(trimmed)) return
-    void prefetchSpeechAudio(trimmed).then(() => {
+    void prefetchSpeechAudio(trimmed).then((ready) => {
+      if (!ready) return
       setReadySet((prev) => {
         if (prev.has(trimmed)) return prev
         const next = new Set(prev)
@@ -110,6 +111,7 @@ export function useTts() {
         objectUrlRef.current = url
 
         const audio = new Audio(url)
+        audio.preload = 'auto'
         audio.playbackRate = speed
         audioRef.current = audio
 
@@ -124,8 +126,8 @@ export function useTts() {
         }
 
         setIsLoading(false)
-        setIsSpeaking(true)
         await audio.play()
+        setIsSpeaking(true)
       } catch (err) {
         if (speakRequestRef.current === requestId) {
           setError(err instanceof Error ? err.message : 'Failed to read aloud.')

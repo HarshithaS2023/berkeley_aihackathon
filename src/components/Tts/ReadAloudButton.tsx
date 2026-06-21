@@ -22,13 +22,13 @@ export function ReadAloudButton({
   onStop,
 }: ReadAloudButtonProps) {
   const isActive = isSpeaking
-  const busy = isLoading || isPreparing
+  const busy = isLoading
 
   return (
     <button
       type="button"
       className="read-aloud-button"
-      disabled={disabled || !text.trim() || busy}
+      disabled={disabled || !text.trim() || isLoading}
       aria-pressed={isActive}
       aria-busy={busy}
       onClick={() => {
@@ -39,7 +39,7 @@ export function ReadAloudButton({
         void onSpeak(text)
       }}
     >
-      {isActive ? 'Stop' : isLoading ? 'Loading…' : isPreparing ? 'Preparing…' : label}
+      {isActive ? 'Stop' : isLoading ? 'Loading…' : isPreparing ? `${label}…` : label}
     </button>
   )
 }

@@ -55,7 +55,17 @@ const revealHint = useQuizStore((state) => state.revealHint)
   const submitCurrentQuestion = useQuizStore((state) => state.submitCurrentQuestion)
   const continueQuiz = useQuizStore((state) => state.continueQuiz)
 
-  const { speak, stop, prefetch, isTextReady, speed, setSpeed, isSpeaking, isLoading } = useTts()
+  const {
+    speak,
+    stop,
+    prefetch,
+    isTextReady,
+    speed,
+    setSpeed,
+    isSpeaking,
+    isLoading,
+    error: ttsError,
+  } = useTts()
 
   useQuestionTimer()
 
@@ -151,6 +161,11 @@ const revealHint = useQuizStore((state) => state.revealHint)
       </header>
 
       <div className="quiz-shell">
+        {ttsError && (
+          <p className="tts-error" role="alert">
+            Audio unavailable: {ttsError}
+          </p>
+        )}
         <section className="question-card">
           <div className="question-heading">
             <div className="question-number">

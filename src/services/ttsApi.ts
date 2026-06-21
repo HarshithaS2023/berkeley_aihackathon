@@ -26,7 +26,14 @@ async function fetchSpeechBlob(preparedText: string): Promise<Blob> {
     throw new Error(detail)
   }
 
-  return response.blob()
+  const blob = await response.blob()
+  if (blob.size === 0) {
+    throw new Error('The speech service returned an empty audio file.')
+  }
+  if (blob.type && !blob.type.startsWith('audio/')) {
+    throw new Error(`The speech service returned ${blob.type} instead of audio.`)
+  }
+  return blob
 }
 
 function cacheKey(rawText: string): string | null {
@@ -47,10 +54,12 @@ function loadSpeechAudio(key: string): Promise<Blob> {
 }
 
 /** Start fetching audio in the background so playback can begin immediately later. */
-export function prefetchSpeechAudio(rawText: string): Promise<void> {
+export function prefetchSpeechAudio(rawText: string): Promise<boolean> {
   const key = cacheKey(rawText)
-  if (!key) return Promise.resolve()
-  return loadSpeechAudio(key).then(() => undefined).catch(() => undefined)
+  if (!key) return Promise.resolve(false)
+  return loadSpeechAudio(key)
+    .then(() => true)
+    .catch(() => false)
 }
 
 export async function fetchSpeechAudio(rawText: string): Promise<Blob> {

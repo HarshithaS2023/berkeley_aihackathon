@@ -27,7 +27,6 @@ export default function HomePage() {
     useState<(typeof difficultyLevels)[number]['value']>('medium')
   const [numQuestions, setNumQuestions] = useState(5)
   const [numQuestionsInput, setNumQuestionsInput] = useState('5')
-  const [whiteboardGraded, setWhiteboardGraded] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
@@ -87,12 +86,7 @@ export default function HomePage() {
     const selectedLevel = difficultyLevels.find(
       (level) => level.value === difficulty,
     )!
-    const fallbackStyleNotes = [
-      instructions,
-      whiteboardGraded ? 'Grade whiteboard work.' : '',
-    ]
-      .filter(Boolean)
-      .join(' ')
+    const fallbackStyleNotes = instructions
 
     setSettings({
       numQuestions,
@@ -111,7 +105,6 @@ export default function HomePage() {
         const styleNotes = [
           data.styleNotes,
           instructions ? `Follow the user's instructions: ${instructions}` : '',
-          whiteboardGraded ? 'Grade whiteboard work.' : '',
         ]
           .filter(Boolean)
           .join(' ')
@@ -274,7 +267,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="builder-row">
+          <div>
             <div className="builder-section">
               <div className="builder-label">
                 <span>2</span>
@@ -309,32 +302,11 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="builder-section">
-              <div className="builder-label">
-                <span>3</span>
-                Grade whiteboard
-              </div>
-              <button
-                type="button"
-                className={
-                  whiteboardGraded
-                    ? 'whiteboard-toggle is-active'
-                    : 'whiteboard-toggle'
-                }
-                onClick={() => setWhiteboardGraded((value) => !value)}
-                aria-pressed={whiteboardGraded}
-              >
-                <span className="toggle-track">
-                  <span />
-                </span>
-                <strong>{whiteboardGraded ? 'On' : 'Off'}</strong>
-              </button>
-            </div>
           </div>
 
           <div className="builder-section">
             <div className="builder-label">
-              <span>4</span>
+              <span>3</span>
               Add study material (optional)
             </div>
             <div

@@ -77,6 +77,8 @@ export type AnalyzeWorkStreamDone = {
   numerical_difference?: number | null
   first_incorrect_step?: string
   error_type?: string
+  strength?: string
+  next_step?: string
 }
 
 export type LivePeekResponse = {

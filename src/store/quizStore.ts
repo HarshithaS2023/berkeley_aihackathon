@@ -44,58 +44,6 @@ async function fetchQuestionBatch(state: QuizSessionState): Promise<Question[]> 
   return quizApi.generateQuestions(buildGenerateRequest(state), batchCount)
 }
 
-let prefetchInFlight = false
-
-function maybePrefetchQuestions(
-  get: () => QuizSessionState & QuizActions,
-  set: (partial: Partial<QuizSessionState>) => void,
-) {
-  if (prefetchInFlight) return
-
-  const state = get()
-  if (!state.sourceProfile) return
-  if (state.results.length >= state.settings.numQuestions) return
-
-  const remainingInQueue = state.questionQueue.length
-  const stillNeeded =
-    state.settings.numQuestions - state.results.length - remainingInQueue
-  // Prefetch when the queue is nearly empty but more questions are needed.
-  if (stillNeeded <= 0 || remainingInQueue > 1) return
-
-  prefetchInFlight = true
-  if (state.sessionId) {
-    void quizApi
-      .refillQuestionQueue(state.sessionId, buildGenerateRequest(state), stillNeeded)
-      .finally(() => {
-        prefetchInFlight = false
-      })
-    return
-  }
-
-  void fetchQuestionBatch(state)
-    .then((questions) => {
-      if (questions.length === 0) return
-
-      const current = get()
-      const neededNow =
-        current.settings.numQuestions -
-        current.results.length -
-        current.questionQueue.length
-      if (neededNow <= 0) return
-
-      set({
-        questionQueue: [...current.questionQueue, ...questions],
-        questionHistory: [...current.questionHistory, ...questions],
-      })
-    })
-    .catch(() => {
-      // generateNextQuestion will retry if prefetch fails.
-    })
-    .finally(() => {
-      prefetchInFlight = false
-    })
-}
-
 const defaultSettings: QuizSettings = {
   numQuestions: 3,
   problemType: 'word_problem',
@@ -172,7 +120,6 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
   },
 
   startQuiz: async () => {
-    prefetchInFlight = false
     const { settings, sessionId } = get()
     set({
       phase: 'generating',
@@ -227,7 +174,6 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
             visibleHints: [],
             streamingFeedback: null,
           })
-          maybePrefetchQuestions(get, set)
           return
         }
       }
@@ -314,11 +260,32 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
         feedback.recommendedDifficulty,
       )
 
+      let sessionId = state.sessionId
+      if (sessionId && results.length < state.settings.numQuestions) {
+        const nextState = {
+          ...state,
+          results,
+          weakAreas,
+          currentDifficulty,
+        }
+        try {
+          await quizApi.refillQuestionQueue(
+            sessionId,
+            buildGenerateRequest(nextState),
+            state.settings.numQuestions - results.length,
+          )
+        } catch {
+          // Fall back to synchronous generation at the updated difficulty.
+          sessionId = null
+        }
+      }
+
       set({
         phase: 'feedback',
         results,
         weakAreas,
         currentDifficulty,
+        sessionId,
         streamingFeedback: null,
       })
     } catch (error) {

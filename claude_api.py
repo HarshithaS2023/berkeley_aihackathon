@@ -175,7 +175,7 @@ async def speak(body: SpeakRequest) -> Response:
         http_client = deepgram_http_client or httpx.AsyncClient(timeout=30.0)
         response = await http_client.post(
             "https://api.deepgram.com/v1/speak",
-            params={"model": DEEPGRAM_SPEAK_MODEL},
+            params={"model": DEEPGRAM_SPEAK_MODEL, "encoding": "mp3"},
             headers={
                 "Authorization": f"Token {DEEPGRAM_API_KEY}",
                 "Content-Type": "application/json",
@@ -190,6 +190,15 @@ async def speak(body: SpeakRequest) -> Response:
                     f"{response.status_code} {response.text[:300]}"
                 ),
             )
+        content_type = response.headers.get("content-type", "")
+        if not response.content or not content_type.startswith("audio/"):
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Deepgram returned an invalid audio response "
+                    f"({content_type or 'unknown content type'})."
+                ),
+            )
     except HTTPException:
         raise
     except httpx.HTTPError as exc:
@@ -198,7 +207,11 @@ async def speak(body: SpeakRequest) -> Response:
             detail=f"Deepgram text-to-speech failed: {exc}",
         ) from exc
 
-    return Response(content=response.content, media_type="audio/mpeg")
+    return Response(
+        content=response.content,
+        media_type=response.headers.get("content-type", "audio/mpeg").split(";")[0],
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 # ── Analyze Source ────────────────────────────────────────────────────────────
@@ -482,9 +495,20 @@ async def refill_question_queue(body: QuestionQueueRefillRequest):
             target_remaining=target_remaining,
         )
     else:
+        # Any queued questions were generated from the previous adaptive state.
+        # Discard them so the next question reflects the latest difficulty and
+        # weak areas instead of showing stale values in the session graph.
+        if queue.fill_task and not queue.fill_task.done():
+            queue.fill_task.cancel()
+        while not queue.questions.empty():
+            try:
+                queue.questions.get_nowait()
+            except asyncio.QueueEmpty:
+                break
         queue.params = params
         queue.cancelled = False
-        queue.target_remaining = max(queue.target_remaining, target_remaining - queue.questions.qsize())
+        queue.target_remaining = target_remaining
+        queue.fill_task = None
 
     ensure_question_queue_filling(body.session_id)
     return {"session_id": body.session_id, "status": "warming"}
@@ -555,6 +579,8 @@ def build_work_analysis_content(body: WorkSubmission):
         '"first_incorrect_step": "first incorrect step, or empty string", '
         '"is_repeated": true/false, '
         '"gap": "one sentence on the underlying concept gap", '
+        '"strength": "specific skill demonstrated well, or empty string", '
+        '"next_step": "one concrete, concept-specific practice action", '
         '"feedback": "warm, specific feedback without unsupported arithmetic claims"}'
     )
 
@@ -608,6 +634,8 @@ def normalize_work_analysis(data: dict, body: WorkSubmission) -> dict:
         "first_incorrect_step": data.get("first_incorrect_step", ""),
         "is_repeated_pattern": bool(data.get("is_repeated", False)),
         "conceptual_gap": data.get("gap", ""),
+        "strength": data.get("strength", ""),
+        "next_step": data.get("next_step", ""),
         "feedback_text": feedback_text,
     }
 
