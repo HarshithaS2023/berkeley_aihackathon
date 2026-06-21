@@ -645,13 +645,23 @@ def build_work_analysis_content(body: WorkSubmission):
         f"Expected solution: {body.expected_solution or 'Not provided'}\n"
         f"Student's typed final answer: {body.work_text or 'Not provided'}\n"
         f"Prior errors this session: {json.dumps(body.prior_errors)}\n\n"
-        "Treat the typed final answer as authoritative when provided. Use the image "
+        "GRADING RULES — follow these exactly:\n"
+        "1. 'correct' is ONLY true when the student's final answer matches the correct "
+        "answer exactly or is numerically equivalent. Correct intermediate work, correct "
+        "derivations, or correct methods WITHOUT arriving at the correct final answer must "
+        "be marked correct=false.\n"
+        "2. 'partially_correct' is true when the student's method or derivation is right "
+        "but the final answer is missing, wrong, or the student stopped before substituting "
+        "or simplifying to reach the final answer.\n"
+        "3. Treat the typed final answer as authoritative when provided. Use the image "
         "to inspect intermediate work. Identify the first visible step that diverges "
-        "from the expected solution. Never invent a submitted answer or claim a "
-        "numerical difference; the server calculates numeric differences. If the "
-        "work is unreadable or no exact incorrect step is visible, say so plainly.\n\n"
+        "from the expected solution.\n"
+        "4. Never invent a submitted answer or claim a numerical difference; the server "
+        "calculates numeric differences. If the work is unreadable or no exact incorrect "
+        "step is visible, say so plainly.\n\n"
         "Respond ONLY with valid JSON, no other text:\n"
         '{"correct": true/false, '
+        '"partially_correct": true/false, '
         '"submitted_answer": "typed answer, or final answer read from image", '
         '"first_incorrect_step": "first incorrect step, or empty string", '
         '"is_repeated": true/false, '
@@ -679,6 +689,7 @@ def build_work_analysis_content(body: WorkSubmission):
 
 def normalize_work_analysis(data: dict, body: WorkSubmission) -> dict:
     is_correct = bool(data.get("correct", False))
+    partially_correct = bool(data.get("partially_correct", False))
     typed_answer = body.work_text.strip() if body.work_text else None
     submitted_answer = typed_answer or str(data.get("submitted_answer", "")).strip()
     submitted_number = parse_numeric_answer(submitted_answer)
@@ -689,8 +700,13 @@ def normalize_work_analysis(data: dict, body: WorkSubmission) -> dict:
         else None
     )
 
+    # Strict final-answer check: numeric typed answers override Claude's assessment.
     if typed_answer and submitted_number is not None and expected_number is not None:
         is_correct = abs(expected_number - submitted_number) < 1e-9
+
+    # Partially correct work is never marked correct regardless of what Claude said.
+    if partially_correct:
+        is_correct = False
 
     feedback_text = str(data.get("feedback", "")).strip()
     if numerical_difference is not None and not is_correct:
@@ -704,6 +720,7 @@ def normalize_work_analysis(data: dict, body: WorkSubmission) -> dict:
 
     return {
         "correct": is_correct,
+        "partially_correct": partially_correct and not is_correct,
         "error_found": not is_correct,
         "submitted_answer": submitted_answer,
         "expected_answer": body.correct_answer,

@@ -101,6 +101,7 @@ function buildAnalyzeWorkBody(request: AnalyzeWorkRequest) {
 
 function mapWorkAnalysis(data: AnalyzeWorkStreamDone, request: AnalyzeWorkRequest): Feedback {
   const correct = data.correct ?? false
+  const partiallyCorrect = !correct && (data.partially_correct ?? false)
   const conceptualGap = data.conceptual_gap ?? ''
   const firstIncorrectStep = data.first_incorrect_step ?? ''
   const concepts = request.question.concepts.join(', ') || 'this concept'
@@ -111,10 +112,13 @@ function mapWorkAnalysis(data: AnalyzeWorkStreamDone, request: AnalyzeWorkReques
     data.next_step?.trim() ||
     (correct
       ? `Try a level ${Math.min(5, request.question.difficulty + 1)} problem using ${concepts}.`
-      : `Redo a similar ${concepts} problem and check each step against the expected method.`)
+      : partiallyCorrect
+        ? `You have the right approach — now complete the final step to reach the answer.`
+        : `Redo a similar ${concepts} problem and check each step against the expected method.`)
   return {
     correct,
-    score: correct ? 1 : 0.35,
+    partiallyCorrect,
+    score: correct ? 1 : partiallyCorrect ? 0.6 : 0.35,
     feedback: data.feedback_text ?? '',
     submittedAnswer: data.submitted_answer || request.submission.answerText,
     expectedAnswer: data.expected_answer ?? request.question.answer,

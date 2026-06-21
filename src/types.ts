@@ -68,6 +68,7 @@ export type AnalyzeWorkRequest = {
 
 export type AnalyzeWorkStreamDone = {
   correct: boolean
+  partially_correct?: boolean
   error_found: boolean
   is_repeated_pattern: boolean
   conceptual_gap: string
@@ -88,6 +89,7 @@ export type LivePeekResponse = {
 
 export type Feedback = {
   correct: boolean
+  partiallyCorrect?: boolean
   score: number
   feedback: string
   submittedAnswer?: string

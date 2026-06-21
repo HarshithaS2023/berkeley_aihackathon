@@ -273,7 +273,7 @@ const revealHint = useQuizStore((state) => state.revealHint)
                 {latestFeedback.correct ? '✓' : '↗'}
               </div>
               <div className="feedback-copy">
-                <span>{latestFeedback.correct ? 'Nicely done' : "Let's refine it"}</span>
+                <span>{latestFeedback.correct ? 'Nicely done' : latestFeedback.partiallyCorrect ? 'Partially correct' : "Let's refine it"}</span>
                 <h2>{latestFeedback.feedback}</h2>
                 {!latestFeedback.correct && (
                   <div className="feedback-details">
