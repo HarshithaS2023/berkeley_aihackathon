@@ -276,6 +276,13 @@ export default function SummaryPage() {
         </section>
 
         <div className="summary-actions">
+          <button
+            type="button"
+            className="summary-secondary"
+            onClick={() => navigate('/analytics')}
+          >
+            View learning trends
+          </button>
           <button type="button" className="summary-primary" onClick={handleNewSession}>
             Start a new session <span aria-hidden="true">→</span>
           </button>

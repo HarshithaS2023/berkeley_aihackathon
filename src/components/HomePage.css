@@ -52,6 +52,27 @@
   padding: 24px 0;
 }
 
+.home-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.home-analytics-link {
+  padding: 8px 14px;
+  border: 1px solid rgba(69, 91, 54, 0.22);
+  border-radius: 999px;
+  color: #3f4d35;
+  background: rgba(255, 255, 252, 0.72);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.home-analytics-link:hover {
+  background: rgba(255, 255, 252, 0.96);
+}
+
 .home-brand {
   display: flex;
   align-items: center;

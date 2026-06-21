@@ -202,12 +202,23 @@ class BatchQuestionRequest(BaseModel):
 _DIFFICULTY_LABEL = {1: "very easy", 2: "easy", 3: "medium", 4: "hard", 5: "very hard"}
 
 
-@app.post("/generate-questions")
-async def generate_questions_batch(body: BatchQuestionRequest):
+def batch_max_tokens(count: int) -> int:
+    # Batches of 3 with hints + solutions need more headroom or JSON gets truncated mid-string.
+    return min(8192, 1200 + 900 * max(1, count))
+
+
+_QUESTION_JSON_RULES = (
+    "Return ONLY a valid JSON array — no markdown fences or commentary. "
+    "Use double quotes for all strings. Do not put raw newlines inside strings. "
+    "Keep each solution field to at most 2 short sentences."
+)
+
+
+def _build_batch_prompt(body: BatchQuestionRequest) -> str:
     difficulty_label = _DIFFICULTY_LABEL.get(body.difficulty, "medium")
     avoid = json.dumps(body.previous_questions[:10]) if body.previous_questions else "none"
 
-    prompt = (
+    return (
         f"Generate exactly {body.count} distinct quiz questions for a student.\n\n"
         f"Topics: {', '.join(body.topics) or 'general'}\n"
         f"Key concepts: {', '.join(body.concepts) or 'as appropriate'}\n"
@@ -216,36 +227,85 @@ async def generate_questions_batch(body: BatchQuestionRequest):
         f"Problem type: {body.problem_type.replace('_', ' ')}\n"
         f"Weak areas to reinforce: {', '.join(body.weak_areas) if body.weak_areas else 'none yet'}\n"
         f"Do NOT repeat these already-asked questions: {avoid}\n\n"
-        f"Return ONLY a valid JSON array with exactly {body.count} objects, no other text:\n"
-        '[{"question":"...","hints":["hint that does not give away the answer"],"answer":"...","solution":"step-by-step explanation","concepts":["concept1"]}]'
+        f"{_QUESTION_JSON_RULES}\n"
+        f"Return exactly {body.count} objects in this shape:\n"
+        '[{"question":"...","hints":["one hint"],"answer":"...","solution":"brief steps","concepts":["concept1"]}]'
     )
 
-    # Scale tokens with how many questions we ask for instead of a flat large cap.
-    max_tokens = min(3000, 500 + 400 * max(1, body.count))
 
-    try:
+def _normalize_question_items(items: list, body: BatchQuestionRequest) -> list[dict]:
+    if not items:
+        raise ValueError("Model returned an empty question list")
+    return [
+        {
+            "id": str(_uuid.uuid4()),
+            "question": item["question"],
+            "hints": item.get("hints", []),
+            "answer": item["answer"],
+            "solution": item.get("solution", ""),
+            "difficulty": body.difficulty,
+            "concepts": item.get("concepts", body.concepts[:2]),
+        }
+        for item in items[: body.count]
+    ]
+
+
+async def _generate_questions_batch(body: BatchQuestionRequest) -> list[dict]:
+    prompt = _build_batch_prompt(body)
+    max_tokens = batch_max_tokens(body.count)
+    last_error: Exception | None = None
+
+    for attempt in range(2):
+        try:
+            response = await client.messages.create(
+                model=MODEL,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            items = parse_json_array(response.content[0].text)
+            if len(items) < body.count:
+                raise ValueError(
+                    f"Expected {body.count} questions, got {len(items)}"
+                )
+            return _normalize_question_items(items, body)
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            last_error = exc
+            max_tokens = min(8192, max_tokens + 2000)
+            prompt = (
+                _build_batch_prompt(body)
+                + "\n\nYour previous response was invalid or truncated. "
+                "Return compact valid JSON with shorter solution fields."
+            )
+
+    # Fall back to one question per call — slower but avoids truncated batch JSON.
+    previous = list(body.previous_questions)
+    collected: list[dict] = []
+    for _ in range(body.count):
+        single = body.model_copy(update={"count": 1, "previous_questions": previous})
         response = await client.messages.create(
             model=MODEL,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1200,
+            messages=[{"role": "user", "content": _build_batch_prompt(single)}],
         )
-        items = parse_json_array(response.content[0].text)
-        return [
-            {
-                "id": str(_uuid.uuid4()),
-                "question": item["question"],
-                "hints": item.get("hints", []),
-                "answer": item["answer"],
-                "solution": item.get("solution", ""),
-                "difficulty": body.difficulty,
-                "concepts": item.get("concepts", body.concepts[:2]),
-            }
-            for item in items
-        ]
+        try:
+            items = parse_json_array(response.content[0].text)
+            normalized = _normalize_question_items(items, single)
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Invalid model response: {last_error or exc}",
+            ) from exc
+        collected.append(normalized[0])
+        previous.append(normalized[0]["question"])
+    return collected
+
+
+@app.post("/generate-questions")
+async def generate_questions_batch(body: BatchQuestionRequest):
+    try:
+        return await _generate_questions_batch(body)
     except APIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except (KeyError, ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=502, detail=f"Invalid model response: {exc}") from exc
 
 
 # ── Analyze Work (single collapsed call) ──────────────────────────────────────

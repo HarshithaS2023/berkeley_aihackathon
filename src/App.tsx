@@ -9,6 +9,7 @@ import {
 import './App.css'
 import lambMascot from './assets/lamb-mascot.png'
 import HomePage from './components/HomePage'
+import AnalyticsPage from './components/Analytics/AnalyticsPage'
 import SummaryPage from './components/SummaryPage'
 import { WorkPanel } from './components/WorkPanel/WorkPanel'
 import { useQuestionTimer } from './hooks/useQuestionTimer'
@@ -240,6 +241,7 @@ export default function App() {
           <Route path="/quiz" element={<QuizScreen />} />
           <Route path="/error" element={<ErrorScreen />} />
           <Route path="/summary" element={<SummaryPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

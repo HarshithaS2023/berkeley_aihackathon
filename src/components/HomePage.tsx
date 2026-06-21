@@ -157,9 +157,18 @@ export default function HomePage() {
             <small>Adaptive study partner</small>
           </span>
         </a>
-        <div className="home-nav-badge">
-          <span />
-          AI-powered practice
+        <div className="home-nav-actions">
+          <button
+            type="button"
+            className="home-analytics-link"
+            onClick={() => navigate('/analytics')}
+          >
+            Analytics
+          </button>
+          <div className="home-nav-badge">
+            <span />
+            AI-powered practice
+          </div>
         </div>
       </header>
 
