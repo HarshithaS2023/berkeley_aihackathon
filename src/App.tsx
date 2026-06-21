@@ -50,7 +50,7 @@ function QuizScreen() {
   const submitCurrentQuestion = useQuizStore((state) => state.submitCurrentQuestion)
   const continueQuiz = useQuizStore((state) => state.continueQuiz)
 
-  const { speak, stop, prefetch, speed, setSpeed, isSpeaking, isLoading } = useTts()
+  const { speak, stop, prefetch, isTextReady, speed, setSpeed, isSpeaking, isLoading } = useTts()
 
   useQuestionTimer()
 
@@ -162,6 +162,7 @@ function QuizScreen() {
                   label="Read question"
                   isSpeaking={isSpeaking}
                   isLoading={isLoading}
+                  isPreparing={!isTextReady(currentQuestion.question)}
                   onSpeak={speak}
                   onStop={stop}
                 />
@@ -244,6 +245,7 @@ function QuizScreen() {
                     label="Read feedback"
                     isSpeaking={isSpeaking}
                     isLoading={isLoading}
+                    isPreparing={!isTextReady(feedbackSpeech)}
                     onSpeak={speak}
                     onStop={stop}
                   />

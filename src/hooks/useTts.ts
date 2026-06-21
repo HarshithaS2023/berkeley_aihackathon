@@ -26,6 +26,7 @@ export function useTts() {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [readySet, setReadySet] = useState<Set<string>>(new Set())
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const objectUrlRef = useRef<string | null>(null)
   const speakRequestRef = useRef(0)
@@ -67,8 +68,20 @@ export function useTts() {
   const prefetch = useCallback((text: string) => {
     const trimmed = text.trim()
     if (!trimmed || !prepareTextForSpeech(trimmed)) return
-    prefetchSpeechAudio(trimmed)
+    void prefetchSpeechAudio(trimmed).then(() => {
+      setReadySet((prev) => {
+        if (prev.has(trimmed)) return prev
+        const next = new Set(prev)
+        next.add(trimmed)
+        return next
+      })
+    })
   }, [])
+
+  const isTextReady = useCallback(
+    (text: string) => readySet.has(text.trim()),
+    [readySet],
+  )
 
   const speak = useCallback(
     async (text: string) => {
@@ -127,6 +140,7 @@ export function useTts() {
     speak,
     stop,
     prefetch,
+    isTextReady,
     speed,
     setSpeed,
     isSpeaking,

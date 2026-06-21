@@ -42,9 +42,10 @@ function loadSpeechAudio(key: string): Promise<Blob> {
 }
 
 /** Start fetching audio in the background so playback can begin immediately later. */
-export function prefetchSpeechAudio(rawText: string): void {
+export function prefetchSpeechAudio(rawText: string): Promise<void> {
   const key = cacheKey(rawText)
-  if (key) loadSpeechAudio(key)
+  if (!key) return Promise.resolve()
+  return loadSpeechAudio(key).then(() => undefined).catch(() => undefined)
 }
 
 export async function fetchSpeechAudio(rawText: string): Promise<Blob> {

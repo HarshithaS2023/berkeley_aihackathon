@@ -5,6 +5,7 @@ type ReadAloudButtonProps = {
   label?: string
   isSpeaking: boolean
   isLoading?: boolean
+  isPreparing?: boolean
   disabled?: boolean
   onSpeak: (text: string) => void | Promise<void>
   onStop: () => void
@@ -15,19 +16,21 @@ export function ReadAloudButton({
   label = 'Read aloud',
   isSpeaking,
   isLoading = false,
+  isPreparing = false,
   disabled,
   onSpeak,
   onStop,
 }: ReadAloudButtonProps) {
   const isActive = isSpeaking
+  const busy = isLoading || isPreparing
 
   return (
     <button
       type="button"
       className="read-aloud-button"
-      disabled={disabled || !text.trim() || isLoading}
+      disabled={disabled || !text.trim() || busy}
       aria-pressed={isActive}
-      aria-busy={isLoading}
+      aria-busy={busy}
       onClick={() => {
         if (isActive) {
           onStop()
@@ -36,7 +39,7 @@ export function ReadAloudButton({
         void onSpeak(text)
       }}
     >
-      {isActive ? 'Stop' : isLoading ? 'Loading…' : label}
+      {isActive ? 'Stop' : isLoading ? 'Loading…' : isPreparing ? 'Preparing…' : label}
     </button>
   )
 }
