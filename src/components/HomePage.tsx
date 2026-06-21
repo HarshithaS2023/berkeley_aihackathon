@@ -226,6 +226,16 @@ export default function HomePage() {
 
       <section className="home-content">
         <div className="home-hero">
+          <div className="mascot-stage">
+            <div className="mascot-message">
+              <strong>Ready when you are.</strong>
+              <span>I'll build the practice test.</span>
+            </div>
+            <div className="mascot-orbit mascot-orbit-one" />
+            <div className="mascot-orbit mascot-orbit-two" />
+            <img src={mascot} alt="Learn+Grow lamb" />
+          </div>
+
           <div className="home-kicker">
             <span>✦</span>
             Practice that learns with you
@@ -254,15 +264,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="mascot-stage">
-            <div className="mascot-message">
-              <strong>Ready when you are.</strong>
-              <span>I'll build the practice test.</span>
-            </div>
-            <div className="mascot-orbit mascot-orbit-one" />
-            <div className="mascot-orbit mascot-orbit-two" />
-            <img src={mascot} alt="Learn+Grow" />
-          </div>
         </div>
 
         <section className="quiz-builder" aria-labelledby="builder-title">

@@ -238,29 +238,28 @@
 }
 
 .mascot-stage {
-  position: absolute;
-  right: -60px;
-  top: 210px;
+  position: relative;
   display: grid;
-  width: 230px;
-  height: 180px;
-  place-items: end center;
+  width: 280px;
+  height: 146px;
+  margin: 0 0 16px;
+  place-items: end start;
 }
 
 .mascot-stage img {
   position: relative;
   z-index: 2;
-  width: 158px;
-  height: 158px;
+  width: 132px;
+  height: 132px;
   object-fit: contain;
   filter: drop-shadow(0 14px 18px rgba(64, 75, 45, 0.2));
 }
 
 .mascot-message {
   position: absolute;
-  z-index: 1;
-  top: -43px;
-  left: -1;
+  z-index: 3;
+  top: 20px;
+  left: 112px;
   display: grid;
   min-width: 180px;
   padding: 11px 14px;
@@ -688,7 +687,9 @@
   }
 
   .mascot-stage {
-    display: none;
+    width: 270px;
+    height: 136px;
+    margin-bottom: 12px;
   }
 
   .quiz-builder {
@@ -716,6 +717,23 @@
 
   .home-hero h1 {
     font-size: clamp(2.7rem, 14vw, 4rem);
+  }
+
+  .mascot-stage {
+    width: 240px;
+    height: 120px;
+  }
+
+  .mascot-stage img {
+    width: 110px;
+    height: 110px;
+  }
+
+  .mascot-message {
+    top: 12px;
+    left: 92px;
+    min-width: 160px;
+    font-size: 0.64rem;
   }
 
   .home-hero > p {
