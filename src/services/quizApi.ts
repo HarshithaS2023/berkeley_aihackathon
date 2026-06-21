@@ -146,7 +146,7 @@ export const httpQuizApi: QuizApi = {
       })
     } catch {
       throw new Error(
-        'Cannot reach the quiz backend at localhost:3001. Start the backend and try again.',
+        `Cannot reach the quiz backend at ${API_BASE}. Start the backend and try again.`,
       )
     }
 

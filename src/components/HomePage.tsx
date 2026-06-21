@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import mascot from '../assets/lamb-mascot.png'
+import { useAuth } from '../contexts/AuthContext'
 import { API_BASE } from '../lib/apiBase'
 import { useQuizStore } from '../store/quizStore'
 import './HomePage.css'
@@ -30,6 +31,7 @@ export default function HomePage() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+  const { user, signOut } = useAuth()
 
   const setSettings = useQuizStore((state) => state.setSettings)
   const setSourceProfile = useQuizStore((state) => state.setSourceProfile)
@@ -161,9 +163,40 @@ export default function HomePage() {
             <small>Adaptive study partner</small>
           </span>
         </a>
-        <div className="home-nav-badge">
-          <span />
-          AI-powered practice
+        <div className="home-nav-actions">
+          {user ? (
+            <>
+              <span className="home-user-email" title={user.email ?? undefined}>
+                {user.email}
+              </span>
+              <button
+                type="button"
+                className="home-analytics-link"
+                onClick={() => navigate('/analytics')}
+              >
+                Analytics
+              </button>
+              <button
+                type="button"
+                className="home-analytics-link"
+                onClick={() => void signOut()}
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="home-analytics-link"
+              onClick={() => navigate('/login')}
+            >
+              Sign in
+            </button>
+          )}
+          <div className="home-nav-badge">
+            <span />
+            AI-powered practice
+          </div>
         </div>
       </header>
 
