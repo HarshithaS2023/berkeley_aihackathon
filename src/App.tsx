@@ -3,9 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import './App.css'
 import HomePage from './components/HomePage'
 import SummaryPage from './components/SummaryPage'
+import { ReadAloudButton } from './components/Tts/ReadAloudButton'
+import { TtsSpeedControl } from './components/Tts/TtsSpeedControl'
 import { WorkPanel } from './components/WorkPanel/WorkPanel'
 import { useQuizStore } from './store/quizStore'
 import { useQuestionTimer } from './hooks/useQuestionTimer'
+import { useTts } from './hooks/useTts'
+import './components/Tts/Tts.css'
 
 const formatTime = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
@@ -30,42 +34,113 @@ function QuizScreen() {
   const results = useQuizStore((s) => s.results)
   const elapsedSeconds = useQuizStore((s) => s.elapsedSeconds)
   const visibleHints = useQuizStore((s) => s.visibleHints)
+  const hintsUsed = useQuizStore((s) => s.hintsUsed)
   const revealHint = useQuizStore((s) => s.revealHint)
   const submitCurrentQuestion = useQuizStore((s) => s.submitCurrentQuestion)
   const continueQuiz = useQuizStore((s) => s.continueQuiz)
+  const { speak, stop, prefetch, speed, setSpeed, isSpeaking, isLoading, error: ttsError } = useTts()
 
   useQuestionTimer()
 
   useEffect(() => {
     if (phase === 'summary') navigate('/summary')
     if (phase === 'setup') navigate('/')
+    if (phase === 'error') navigate('/error')
   }, [phase, navigate])
+
+  useEffect(() => {
+    if (!currentQuestion || phase === 'feedback') return
+    prefetch(currentQuestion.question)
+    for (const hint of currentQuestion.hints) {
+      prefetch(`Hint: ${hint}`)
+    }
+  }, [currentQuestion?.id, phase, prefetch, currentQuestion?.question, currentQuestion?.hints])
+
+  useEffect(() => {
+    if (phase !== 'feedback') return
+    const latest = results.at(-1)?.feedback
+    if (!latest) return
+    const speech = `${latest.feedback} ${latest.suggestedNextStep}`.trim()
+    if (speech) prefetch(speech)
+  }, [phase, results, prefetch])
 
   if (phase === 'generating') return <StatusScreen message="Generating your next question…" />
   if (phase === 'submitting') return <StatusScreen message="Analyzing your work…" />
-  if (!currentQuestion) return null
+  if (!currentQuestion) {
+    return <StatusScreen message="Preparing your quiz…" />
+  }
 
   const latestFeedback = results.at(-1)?.feedback
   const isFeedback = phase === 'feedback' && latestFeedback
   const isLastQuestion = results.length >= settings.numQuestions
   const displayedQuestionNumber = phase === 'feedback' ? results.length : results.length + 1
 
+  const feedbackSpeech = latestFeedback
+    ? `${latestFeedback.feedback} ${latestFeedback.suggestedNextStep}`.trim()
+    : ''
+
+  const handleShowHint = () => {
+    const nextHint = currentQuestion.hints[hintsUsed]
+    revealHint()
+    if (nextHint) {
+      void speak(`Hint: ${nextHint}`)
+    }
+  }
+
+  const hintSpeech = (hint: string) => `Hint: ${hint}`
+
+  const next = () => {
+    stop()
+    setAnswerText('')
+    void continueQuiz()
+  }
+
   return (
     <main className="shell quiz">
       <header className="quiz-header">
-        <span>
-          Question {Math.min(displayedQuestionNumber, settings.numQuestions)} of {settings.numQuestions}
-        </span>
-        <span className="difficulty">Difficulty {currentDifficulty}/5</span>
-        <span className="timer">{formatTime(elapsedSeconds)}</span>
+        <div className="quiz-header-meta">
+          <span>
+            Question {Math.min(displayedQuestionNumber, settings.numQuestions)} of{' '}
+            {settings.numQuestions}
+          </span>
+          <span className="difficulty">Difficulty {currentDifficulty}/5</span>
+        </div>
+        <div className="quiz-header-controls">
+          <span className="timer">{formatTime(elapsedSeconds)}</span>
+          <TtsSpeedControl speed={speed} onSpeedChange={setSpeed} disabled={isSpeaking} />
+        </div>
       </header>
 
       <section className="question-card">
         <p className="eyebrow">{currentQuestion.concepts.join(' · ')}</p>
-        <h2>{currentQuestion.question}</h2>
+        <div className="tts-row">
+          <h2>{currentQuestion.question}</h2>
+          {!isFeedback && (
+            <ReadAloudButton
+              text={currentQuestion.question}
+              label="Read question"
+              isSpeaking={isSpeaking}
+              isLoading={isLoading}
+              onSpeak={speak}
+              onStop={stop}
+            />
+          )}
+        </div>
+
+        {ttsError && <p className="tts-error">{ttsError}</p>}
 
         {visibleHints.map((hint) => (
-          <p className="hint" key={hint}>Hint: {hint}</p>
+          <div className="tts-row hint-row" key={hint}>
+            <p className="hint">Hint: {hint}</p>
+            <ReadAloudButton
+              text={hintSpeech(hint)}
+              label="Read hint"
+              isSpeaking={isSpeaking}
+              isLoading={isLoading}
+              onSpeak={speak}
+              onStop={stop}
+            />
+          </div>
         ))}
 
         {!isFeedback && (
@@ -79,8 +154,7 @@ function QuizScreen() {
               />
             </label>
             <WorkPanel
-              onShowHint={revealHint}
-              submitting={phase === 'answering'}
+              onShowHint={handleShowHint}
               onSubmitWork={(work) =>
                 void submitCurrentQuestion({
                   ...work,
@@ -94,12 +168,22 @@ function QuizScreen() {
         {isFeedback && (
           <div className={`feedback ${latestFeedback.correct ? 'correct' : 'incorrect'}`}>
             <p className="eyebrow">{latestFeedback.correct ? 'Correct' : 'Keep working'}</p>
-            <h3>{latestFeedback.feedback}</h3>
+            <div className="tts-row">
+              <h3>{latestFeedback.feedback}</h3>
+              <ReadAloudButton
+                text={feedbackSpeech}
+                label="Read feedback"
+                isSpeaking={isSpeaking}
+                isLoading={isLoading}
+                onSpeak={speak}
+                onStop={stop}
+              />
+            </div>
             <p>{latestFeedback.suggestedNextStep}</p>
             <button
               className="primary"
               type="button"
-              onClick={() => { setAnswerText(''); void continueQuiz() }}
+              onClick={next}
             >
               {isLastQuestion ? 'View summary' : 'Next question'}
             </button>

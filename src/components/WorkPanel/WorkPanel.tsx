@@ -23,20 +23,24 @@ export function WorkPanel({
   const [savedWhiteboardBase64, setSavedWhiteboardBase64] = useState<string | null>(null)
   const [whiteboardOpen, setWhiteboardOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const whiteboardPreviewUrl = savedWhiteboardBase64
     ? `data:image/png;base64,${savedWhiteboardBase64}`
     : null
 
-  const isBusy = disabled || submitting
+  const isBusy = disabled || submitting || isSubmitting
 
   async function handleSubmit() {
     setError(null)
+    setIsSubmitting(true)
     try {
       const work = await getWorkSubmission(workFile, savedWhiteboardBase64)
       await onSubmitWork(work)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit work.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -136,7 +140,7 @@ export function WorkPanel({
             disabled={isBusy}
             onClick={handleSubmit}
           >
-            {submitting ? 'Submitting…' : 'Submit work'}
+            {isSubmitting || submitting ? 'Submitting…' : 'Submit work'}
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { API_BASE } from '../lib/apiBase'
 import type {
   AnalyzeWorkRequest,
   Feedback,
@@ -13,8 +14,6 @@ export type QuizApi = {
   analyzeWork(request: AnalyzeWorkRequest): Promise<Feedback>
   generateSummary(results: SessionResult[]): Promise<SummaryResponse>
 }
-
-const API_BASE = 'http://localhost:3001'
 
 function buildBatchBody(request: GenerateQuestionRequest, count: number) {
   return {

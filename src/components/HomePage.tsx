@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import mascot from '../assets/hero.png'
+import { API_BASE } from '../lib/apiBase'
 import { useQuizStore } from '../store/quizStore'
 
 interface UploadedFile {
@@ -80,7 +81,7 @@ export default function HomePage() {
     setSettings({ numQuestions, startingDifficulty: selectedLevel.num as 1 | 2 | 3 | 4 | 5 })
 
     try {
-      const res = await fetch('http://localhost:3001/analyze-source', {
+      const res = await fetch(`${API_BASE}/analyze-source`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files: uploadedFiles }),
@@ -99,9 +100,15 @@ export default function HomePage() {
       setSourceProfile({ topics: [], concepts: [], styleNotes: '' })
     }
 
-    void startQuiz()
+    await startQuiz()
     setIsAnalyzing(false)
-    navigate('/quiz')
+
+    const nextPhase = useQuizStore.getState().phase
+    if (nextPhase === 'error') {
+      navigate('/error')
+    } else {
+      navigate('/quiz')
+    }
   }
 
   return (

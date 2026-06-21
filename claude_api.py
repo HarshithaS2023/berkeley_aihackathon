@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 import anthropic
+import httpx
 from anthropic import APIError
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 # override=True ensures values in .env win over any shell variables
@@ -21,12 +23,20 @@ load_dotenv(override=True)
 API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 BASE_URL = os.getenv("CLAUDE_BASE_URL", "https://api.anthropic.com")
 MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+DEEPGRAM_SPEAK_MODEL = os.getenv("DEEPGRAM_SPEAK_MODEL", "aura-2-asteria-en")
 
 client = anthropic.AsyncAnthropic(api_key=API_KEY, base_url=BASE_URL)
+deepgram_http_client: httpx.AsyncClient | None = None
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    global deepgram_http_client
+    deepgram_http_client = httpx.AsyncClient(
+        timeout=30.0,
+        limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+    )
     # Warm up the connection/model so the first real request is fast.
     try:
         await client.messages.create(
@@ -37,6 +47,8 @@ async def lifespan(_app: FastAPI):
     except Exception:
         pass
     yield
+    await deepgram_http_client.aclose()
+    deepgram_http_client = None
 
 
 app = FastAPI(lifespan=lifespan)
@@ -67,7 +79,49 @@ def parse_json_array(text: str) -> list:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "model": MODEL, "base_url": BASE_URL}
+    return {
+        "status": "ok",
+        "model": MODEL,
+        "base_url": BASE_URL,
+        "deepgramConfigured": bool(DEEPGRAM_API_KEY),
+    }
+
+
+class SpeakRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000)
+
+
+@app.post("/speak")
+async def speak(body: SpeakRequest) -> Response:
+    if not DEEPGRAM_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Deepgram API key not configured on the server.",
+        )
+
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is required.")
+
+    try:
+        http_client = deepgram_http_client or httpx.AsyncClient(timeout=30.0)
+        response = await http_client.post(
+            "https://api.deepgram.com/v1/speak",
+            params={"model": DEEPGRAM_SPEAK_MODEL},
+            headers={
+                "Authorization": f"Token {DEEPGRAM_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={"text": text},
+        )
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Deepgram text-to-speech failed: {exc}",
+        ) from exc
+
+    return Response(content=response.content, media_type="audio/mpeg")
 
 
 # ── Analyze Source ────────────────────────────────────────────────────────────
