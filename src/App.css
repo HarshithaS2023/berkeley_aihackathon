@@ -528,8 +528,13 @@ button:disabled {
   }
 
   .difficulty,
-  .timer {
+  .timer,
+  .tts-speed-control {
     padding: 6px 8px;
+  }
+
+  .tts-speed-label {
+    display: none;
   }
 
   .quiz-shell {

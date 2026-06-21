@@ -182,7 +182,16 @@ async def speak(body: SpeakRequest) -> Response:
             },
             json={"text": text},
         )
-        response.raise_for_status()
+        if response.is_error:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Deepgram text-to-speech failed: "
+                    f"{response.status_code} {response.text[:300]}"
+                ),
+            )
+    except HTTPException:
+        raise
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=502,

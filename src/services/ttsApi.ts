@@ -16,7 +16,12 @@ async function fetchSpeechBlob(preparedText: string): Promise<Blob> {
       const data = await response.json()
       if (data?.detail) detail = String(data.detail)
     } catch {
-      // response had no JSON body
+      try {
+        const text = await response.text()
+        if (text) detail = text.slice(0, 300)
+      } catch {
+        // response had no readable body
+      }
     }
     throw new Error(detail)
   }

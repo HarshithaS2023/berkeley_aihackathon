@@ -1,3 +1,67 @@
+.tts-speed-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px 0 11px;
+  border: 1px solid #dce0ce;
+  border-radius: 999px;
+  background: #fffef7;
+  color: #596350;
+  font-size: 0.67rem;
+  font-weight: 760;
+  flex-shrink: 0;
+}
+
+.tts-speed-icon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: #71845e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  flex-shrink: 0;
+}
+
+.tts-speed-label {
+  margin: 0;
+  color: #7a8472;
+  font-size: 0.67rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.tts-speed-select {
+  appearance: none;
+  min-width: 0;
+  width: auto;
+  padding: 7px 18px 7px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #596350;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='none' stroke='%2371845e' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M2 3.5 5 6.5 8 3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+}
+
+.tts-speed-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.tts-speed-select:focus-visible {
+  outline: 2px solid rgba(92, 108, 73, 0.35);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .tts-toolbar {
   display: flex;
   align-items: center;
