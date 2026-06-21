@@ -1,3 +1,4 @@
+import { API_BASE } from '../lib/apiBase'
 import type {
   AnalyzeWorkRequest,
   Feedback,
@@ -13,8 +14,6 @@ export type QuizApi = {
   analyzeWork(request: AnalyzeWorkRequest): Promise<Feedback>
   generateSummary(results: SessionResult[]): Promise<SummaryResponse>
 }
-
-const API_BASE = 'http://localhost:3001'
 
 async function getApiError(response: Response, fallback: string) {
   try {
@@ -40,6 +39,7 @@ function assertQuestions(value: unknown): asserts value is Question[] {
     throw new Error('The question API returned an unexpected response.')
   }
 }
+
 
 function buildBatchBody(request: GenerateQuestionRequest, count: number) {
   return {

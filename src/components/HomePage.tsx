@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import mascot from '../assets/lamb-mascot.png'
+import { API_BASE } from '../lib/apiBase'
 import { useQuizStore } from '../store/quizStore'
 import './HomePage.css'
 
@@ -87,7 +88,7 @@ export default function HomePage() {
     })
 
     try {
-      const response = await fetch('http://localhost:3001/analyze-source', {
+      const response = await fetch(`${API_BASE}/analyze-source`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files: uploadedFiles }),
@@ -111,7 +112,13 @@ export default function HomePage() {
 
     await startQuiz()
     setIsAnalyzing(false)
-    navigate('/quiz')
+
+    const nextPhase = useQuizStore.getState().phase
+    if (nextPhase === 'error') {
+      navigate('/error')
+    } else {
+      navigate('/quiz')
+    }
   }
 
   return (

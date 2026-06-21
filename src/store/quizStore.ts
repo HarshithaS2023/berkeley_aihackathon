@@ -138,6 +138,7 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
     prefetchInFlight = false
     const { settings } = get()
     set({
+      phase: 'generating',
       results: [],
       questionHistory: [],
       questionQueue: [],
