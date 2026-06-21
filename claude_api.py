@@ -544,12 +544,9 @@ async def generate_competition_questions(body: CompetitionQuestionsRequest):
     g2 = n - g1 - g3
     groups = [(count, min(d + offset, 5)) for count, offset in [(g1, 0), (g2, 1), (g3, 2)] if count > 0]
 
-    questions: list[dict] = []
-    previous: list[str] = []
-
     try:
-        for count, difficulty in groups:
-            batch = await create_question_batch(
+        batches = await asyncio.gather(*[
+            create_question_batch(
                 BatchQuestionRequest(
                     topics=body.topics,
                     concepts=body.concepts,
@@ -557,16 +554,16 @@ async def generate_competition_questions(body: CompetitionQuestionsRequest):
                     difficulty=difficulty,
                     problem_type=body.problem_type,
                     weak_areas=[],
-                    previous_questions=previous,
+                    previous_questions=[],
                     count=count,
                 )
             )
-            questions.extend(batch)
-            previous.extend(q["question"] for q in batch)
+            for count, difficulty in groups
+        ])
     except APIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    return questions
+    return [q for batch in batches for q in batch]
 
 
 # ── Analyze Work (single collapsed call) ──────────────────────────────────────

@@ -5,6 +5,7 @@ create table if not exists competition_sessions (
   code        text unique not null,           -- 6-char join code shared with opponent
   source_profile jsonb not null,              -- topics, concepts, styleNotes
   settings    jsonb not null,                 -- numQuestions, startingDifficulty, problemType, similarity
+  questions   jsonb not null default '[]',    -- pre-generated Question[] shared by both players
   status      text not null default 'waiting' check (status in ('waiting','active','complete')),
   created_at  timestamptz not null default now(),
   started_at  timestamptz

@@ -16,6 +16,7 @@ import type {
 // Generate against the latest graded result so queued questions never use a
 // stale difficulty level.
 const BATCH_SIZE = 1
+let prefetchInFlight = false
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Something went wrong.'

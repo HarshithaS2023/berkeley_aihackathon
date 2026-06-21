@@ -28,6 +28,7 @@ export default function HomePage() {
   const [numQuestions, setNumQuestions] = useState(5)
   const [numQuestionsInput, setNumQuestionsInput] = useState('5')
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [whiteboardGraded] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
