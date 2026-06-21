@@ -51,7 +51,18 @@
 
 .analytics-nav-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
+}
+
+.analytics-user-email {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #6c7462;
+  font-size: 0.74rem;
+  font-weight: 600;
 }
 
 .analytics-shell {
@@ -182,6 +193,20 @@
 .analytics-error p {
   color: #6c7462;
   max-width: 420px;
+}
+
+.analytics-setup-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  max-width: 420px;
+  color: #6c7462;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.analytics-setup-steps code {
+  font-size: 0.82rem;
 }
 
 .analytics-legend {

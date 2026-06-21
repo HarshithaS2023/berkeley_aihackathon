@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts'
 import mascot from '../../assets/lamb-mascot.png'
+import { useAuth } from '../../contexts/AuthContext'
 import { CHART_TOPIC_COLORS } from '../../lib/analyticsInsights'
 import { fetchAnalyticsSnapshot } from '../../services/analyticsApi'
 import type { AnalyticsSnapshot, TopicTrendPoint } from '../../types/analytics'
@@ -232,12 +233,18 @@ function AnalyticsContent({ data }: { data: AnalyticsSnapshot }) {
 
 export default function AnalyticsPage() {
   const navigate = useNavigate()
+  const { user, signOut } = useAuth()
   const [data, setData] = useState<AnalyticsSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!user?.id) return
+
     let cancelled = false
+    setLoading(true)
+    setError(null)
+    setData(null)
 
     void fetchAnalyticsSnapshot()
       .then((snapshot) => {
@@ -255,7 +262,7 @@ export default function AnalyticsPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [user?.id])
 
   if (loading) {
     return (
@@ -267,11 +274,22 @@ export default function AnalyticsPage() {
   }
 
   if (error) {
+    const needsMigration =
+      error.includes('user_id') ||
+      error.includes('auth_migration.sql')
+
     return (
       <main className="analytics-error">
         <img src={mascot} alt="" width={72} height={72} />
-        <h2>Could not load analytics</h2>
+        <h2>{needsMigration ? 'One-time database setup needed' : 'Could not load analytics'}</h2>
         <p>{error}</p>
+        {needsMigration && (
+          <ol className="analytics-setup-steps">
+            <li>Open your Supabase project → SQL Editor</li>
+            <li>Paste and run the contents of <code>supabase/auth_migration.sql</code></li>
+            <li>Refresh this page</li>
+          </ol>
+        )}
         <button className="quiz-primary" type="button" onClick={() => navigate('/')}>
           Back home
         </button>
@@ -285,12 +303,17 @@ export default function AnalyticsPage() {
         <img src={mascot} alt="" width={72} height={72} />
         <h2>No sessions yet</h2>
         <p>
-          Complete a quiz and reach the summary screen — your session will be saved
-          to Supabase and show up here with trends and insights.
+          Complete a quiz while signed in — your session will be saved to your
+          account and show up here with trends and insights.
         </p>
         <button className="quiz-primary" type="button" onClick={() => navigate('/')}>
           Start a quiz
         </button>
+        {!user && (
+          <button className="quiz-secondary" type="button" onClick={() => navigate('/login')}>
+            Sign in
+          </button>
+        )}
       </main>
     )
   }
@@ -310,6 +333,14 @@ export default function AnalyticsPage() {
           </span>
         </button>
         <div className="analytics-nav-actions">
+          {user?.email && (
+            <span className="analytics-user-email" title={user.email}>
+              {user.email}
+            </span>
+          )}
+          <button className="quiz-secondary" type="button" onClick={() => void signOut()}>
+            Sign out
+          </button>
           <button className="quiz-secondary" type="button" onClick={() => navigate('/')}>
             Home
           </button>

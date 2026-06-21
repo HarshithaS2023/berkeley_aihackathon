@@ -41,8 +41,8 @@ function buildSessionTrend(sessions: DbSession[]): SessionTrendPoint[] {
     sessionId: session.id,
     label: formatSessionLabel(session.created_at, index),
     date: session.created_at,
-    accuracyPct: Math.round(session.accuracy * 1000) / 10,
-    avgTimeSec: session.avg_time,
+    accuracyPct: Math.round((session.accuracy ?? 0) * 1000) / 10,
+    avgTimeSec: session.avg_time ?? 0,
     topics: session.topics?.length ? session.topics : ['General'],
   }))
 }
@@ -52,7 +52,7 @@ function buildTopicTrends(sessions: DbSession[]): TopicTrendPoint[] {
 
   sessions.forEach((session, sessionIndex) => {
     const topics = session.topics?.length ? session.topics : ['General']
-    const accuracyPct = Math.round(session.accuracy * 1000) / 10
+    const accuracyPct = Math.round((session.accuracy ?? 0) * 1000) / 10
     const label = formatSessionLabel(session.created_at, sessionIndex)
 
     for (const topic of topics) {
@@ -213,7 +213,9 @@ function buildSummaryInsight(
   sessionCount: number,
   overallAccuracyPct: number,
   sessionTrend: SessionTrendPoint[],
-): TrendInsight {
+): TrendInsight | null {
+  if (sessionCount === 0) return null
+
   if (sessionCount === 1) {
     return {
       type: 'summary',
@@ -222,8 +224,10 @@ function buildSummaryInsight(
     }
   }
 
-  const latest = sessionTrend[sessionTrend.length - 1]
   const earliest = sessionTrend[0]
+  const latest = sessionTrend[sessionTrend.length - 1]
+  if (!earliest || !latest) return null
+
   const accuracyDelta = latest.accuracyPct - earliest.accuracyPct
 
   let trendPhrase = 'holding steady'
@@ -242,6 +246,19 @@ export function buildAnalyticsSnapshot(
   mistakes: DbMistake[],
   questions: DbQuestion[],
 ): AnalyticsSnapshot {
+  if (sessions.length === 0) {
+    return {
+      sessionCount: 0,
+      overallAccuracyPct: 0,
+      sessionTrend: [],
+      topicTrends: [],
+      topMissedConcepts: [],
+      conceptAccuracy: [],
+      insights: [],
+      topics: [],
+    }
+  }
+
   const sessionTrend = buildSessionTrend(sessions)
   const topicTrends = buildTopicTrends(sessions)
   const { topMissed, byAccuracy } = buildConceptStats(questions, mistakes)
@@ -249,7 +266,7 @@ export function buildAnalyticsSnapshot(
   const overallAccuracyPct =
     sessions.length > 0
       ? Math.round(
-          (sessions.reduce((sum, s) => sum + s.accuracy, 0) / sessions.length) *
+          (sessions.reduce((sum, s) => sum + (s.accuracy ?? 0), 0) / sessions.length) *
             1000,
         ) / 10
       : 0

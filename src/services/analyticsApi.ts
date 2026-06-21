@@ -14,20 +14,53 @@ export async function fetchAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
     )
   }
 
-  const [sessionsRes, mistakesRes, questionsRes] = await Promise.all([
-    supabase
-      .from('sessions')
-      .select('id, created_at, accuracy, avg_time, num_questions, topics')
-      .order('created_at', { ascending: true }),
-    supabase.from('mistakes').select('id, session_id, concept, error_pattern'),
-    supabase
-      .from('questions')
-      .select('id, session_id, concepts, difficulty, correct, time_spent, hints_used'),
-  ])
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(`Authentication error: ${authError.message}`)
+  }
+  if (!user) {
+    throw new Error('Sign in to view your analytics.')
+  }
+
+  const sessionsRes = await supabase
+    .from('sessions')
+    .select('id, created_at, accuracy, avg_time, num_questions, topics')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
 
   if (sessionsRes.error) {
-    throw new Error(`Failed to load sessions: ${sessionsRes.error.message}`)
+    const message = sessionsRes.error.message
+    if (message.includes('user_id') && message.includes('does not exist')) {
+      throw new Error(
+        'Database setup incomplete: the sessions.user_id column is missing. Run supabase/auth_migration.sql in the Supabase SQL Editor (Dashboard → SQL → New query), then refresh this page.',
+      )
+    }
+    throw new Error(`Failed to load sessions: ${message}`)
   }
+
+  const sessions = (sessionsRes.data ?? []) as DbSession[]
+
+  if (sessions.length === 0) {
+    return buildAnalyticsSnapshot([], [], [])
+  }
+
+  const sessionIds = sessions.map((session) => session.id)
+
+  const [mistakesRes, questionsRes] = await Promise.all([
+    supabase
+      .from('mistakes')
+      .select('id, session_id, concept, error_pattern')
+      .in('session_id', sessionIds),
+    supabase
+      .from('questions')
+      .select('id, session_id, concepts, difficulty, correct, time_spent, hints_used')
+      .in('session_id', sessionIds),
+  ])
+
   if (mistakesRes.error) {
     throw new Error(`Failed to load mistakes: ${mistakesRes.error.message}`)
   }
@@ -36,7 +69,7 @@ export async function fetchAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
   }
 
   return buildAnalyticsSnapshot(
-    (sessionsRes.data ?? []) as DbSession[],
+    sessions,
     (mistakesRes.data ?? []) as DbMistake[],
     (questionsRes.data ?? []) as DbQuestion[],
   )

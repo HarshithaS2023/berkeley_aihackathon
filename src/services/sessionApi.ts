@@ -42,10 +42,20 @@ function buildMistakeRows(sessionId: string, results: SessionResult[]) {
   return rows
 }
 
-/** Persist a completed quiz session. Returns false if Supabase is not configured or save fails. */
+/** Persist a completed quiz session for the signed-in user. */
 export async function saveSession(input: SaveSessionInput): Promise<boolean> {
   if (!supabase) {
     console.warn('[saveSession] Supabase not configured — skipping save.')
+    return false
+  }
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    console.warn('[saveSession] Not signed in — session not saved.')
     return false
   }
 
@@ -54,6 +64,7 @@ export async function saveSession(input: SaveSessionInput): Promise<boolean> {
   const { data: sessionRow, error: sessionError } = await supabase
     .from('sessions')
     .insert({
+      user_id: user.id,
       accuracy: summary.accuracy,
       avg_time: Math.round(summary.averageResponseTimeSeconds),
       num_questions: settings.numQuestions,
