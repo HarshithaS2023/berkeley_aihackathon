@@ -21,6 +21,10 @@ import { WorkPanel } from './components/WorkPanel/WorkPanel'
 import { useQuestionTimer } from './hooks/useQuestionTimer'
 import { useTts } from './hooks/useTts'
 import { useQuizStore } from './store/quizStore'
+import CompetitionSetup from './components/Competition/CompetitionSetup'
+import WaitingRoom from './components/Competition/WaitingRoom'
+import CompetitionQuiz from './components/Competition/CompetitionQuiz'
+import CompetitionResults from './components/Competition/CompetitionResults'
 
 const formatTime = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(
@@ -312,6 +316,10 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/compete" element={<CompetitionSetup />} />
+            <Route path="/compete/lobby" element={<WaitingRoom />} />
+            <Route path="/compete/quiz" element={<CompetitionQuiz />} />
+            <Route path="/compete/results" element={<CompetitionResults />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

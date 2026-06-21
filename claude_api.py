@@ -615,20 +615,19 @@ def normalize_work_analysis(data: dict, body: WorkSubmission) -> dict:
 @app.post("/live-peek")
 async def live_peek(body: LivePeekRequest):
     prompt = (
-        "Student is mid-work on a whiteboard for this question:\n"
-        f"{body.question}\n\n"
-        "Look for major conceptual errors, sign errors, arithmetic errors, etc."
-        "Give ONE concise summary if the student is on the right track or not."
-        "Do not second-guess yourself."
-        "Do not reveal the answer or final result."
+        f"A student is working on this problem: {body.question}\n\n"
+        "Look at their whiteboard and give ONE short coaching nudge in plain conversational English — "
+        "1 or 2 sentences max. No bullet points, no headers, no markdown formatting. "
+        "If they're on the right track, say so encouragingly. "
+        "If you spot an error, point to it specifically without giving away the answer."
     )
     if body.correct_answer:
-        prompt += "\nUse the correct answer only to avoid misleading them; do not reveal it."
+        prompt += " Use the correct answer only to avoid misleading them; do not reveal it."
 
     try:
         response = await client.messages.create(
             model=MODEL,
-            max_tokens=60,
+            max_tokens=120,
             messages=[
                 {
                     "role": "user",

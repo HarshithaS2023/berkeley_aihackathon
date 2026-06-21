@@ -677,6 +677,35 @@
   font-size: 1.1rem;
 }
 
+.generate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.challenge-button {
+  width: 100%;
+  padding: 12px 17px;
+  border-radius: 13px;
+  background: transparent;
+  border: 1.5px solid #c2d4b0;
+  color: #557a3b;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.challenge-button:hover:not(:disabled) {
+  background: #f3f8ee;
+  border-color: #7aad56;
+}
+
+.challenge-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .builder-footnote {
   margin: 10px 0 0;
   color: #949786;

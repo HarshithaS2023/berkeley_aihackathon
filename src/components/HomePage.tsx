@@ -73,6 +73,46 @@ export default function HomePage() {
     setNumQuestionsInput(String(nextValue))
   }
 
+  const handleChallenge = async () => {
+    const instructions = chatInput.trim()
+    if (uploadedFiles.length === 0 && !instructions) {
+      setError('Upload a study file or add instructions first.')
+      return
+    }
+    setError(null)
+    setIsAnalyzing(true)
+
+    const selectedLevel = difficultyLevels.find((level) => level.value === difficulty)!
+    const fallbackStyleNotes = [instructions, whiteboardGraded ? 'Grade whiteboard work.' : '']
+      .filter(Boolean).join(' ')
+
+    setSettings({ numQuestions, startingDifficulty: selectedLevel.num })
+
+    try {
+      const response = await fetch(`${API_BASE}/analyze-source`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: uploadedFiles, instructions }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const styleNotes = [
+          data.styleNotes,
+          instructions ? `Follow the user's instructions: ${instructions}` : '',
+          whiteboardGraded ? 'Grade whiteboard work.' : '',
+        ].filter(Boolean).join(' ')
+        setSourceProfile({ topics: data.topics ?? [], concepts: data.concepts ?? [], styleNotes })
+      } else {
+        setSourceProfile({ topics: instructions ? [instructions] : ['Uploaded study material'], concepts: [], styleNotes: fallbackStyleNotes })
+      }
+    } catch {
+      setSourceProfile({ topics: instructions ? [instructions] : ['Uploaded study material'], concepts: [], styleNotes: fallbackStyleNotes })
+    }
+
+    setIsAnalyzing(false)
+    navigate('/compete')
+  }
+
   const handleEnter = async () => {
     const instructions = chatInput.trim()
 
@@ -428,15 +468,25 @@ export default function HomePage() {
 
           {error && <p className="builder-error">{error}</p>}
 
-          <button
-            type="button"
-            className="generate-button"
-            disabled={isAnalyzing}
-            onClick={() => void handleEnter()}
-          >
-            <span>{isAnalyzing ? 'Building your quiz…' : 'Generate my quiz'}</span>
-            {!isAnalyzing && <span aria-hidden="true">→</span>}
-          </button>
+          <div className="generate-actions">
+            <button
+              type="button"
+              className="generate-button"
+              disabled={isAnalyzing}
+              onClick={() => void handleEnter()}
+            >
+              <span>{isAnalyzing ? 'Building your quiz…' : 'Generate my quiz'}</span>
+              {!isAnalyzing && <span aria-hidden="true">→</span>}
+            </button>
+            <button
+              type="button"
+              className="challenge-button"
+              disabled={isAnalyzing}
+              onClick={() => void handleChallenge()}
+            >
+              ⚡ Challenge a friend
+            </button>
+          </div>
           <p className="builder-footnote">
             Your files and instructions are used only to create this practice
             session.
