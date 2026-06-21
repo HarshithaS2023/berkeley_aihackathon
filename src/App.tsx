@@ -30,6 +30,22 @@ function StatusScreen({ message }: { message: string }) {
   )
 }
 
+function StreamingFeedbackScreen({ text }: { text: string | null }) {
+  const visibleText = text?.trim()
+
+  return (
+    <main className="quiz-status streaming-status">
+      <img src={lambMascot} alt="" />
+      <div className="spinner" />
+      <h2>Reviewing your work…</h2>
+      <div className="streaming-feedback">
+        <span>Live feedback</span>
+        <p>{visibleText || 'Reading your work and checking the reasoning…'}</p>
+      </div>
+    </main>
+  )
+}
+
 function QuizScreen() {
   const [answerText, setAnswerText] = useState('')
   const navigate = useNavigate()
@@ -41,6 +57,7 @@ function QuizScreen() {
   const results = useQuizStore((state) => state.results)
   const elapsedSeconds = useQuizStore((state) => state.elapsedSeconds)
   const visibleHints = useQuizStore((state) => state.visibleHints)
+  const streamingFeedback = useQuizStore((state) => state.streamingFeedback)
   const revealHint = useQuizStore((state) => state.revealHint)
   const submitCurrentQuestion = useQuizStore((state) => state.submitCurrentQuestion)
   const continueQuiz = useQuizStore((state) => state.continueQuiz)
@@ -57,7 +74,7 @@ function QuizScreen() {
     return <StatusScreen message="Growing your next question…" />
   }
   if (phase === 'submitting') {
-    return <StatusScreen message="Reviewing your work…" />
+    return <StreamingFeedbackScreen text={streamingFeedback} />
   }
   if (!currentQuestion) {
     return <StatusScreen message="Preparing your quiz…" />
@@ -148,6 +165,7 @@ function QuizScreen() {
                 />
               </label>
               <WorkPanel
+                question={currentQuestion}
                 onShowHint={revealHint}
                 onSubmitWork={(work) =>
                   void submitCurrentQuestion({

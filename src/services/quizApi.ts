@@ -1,8 +1,10 @@
 import { API_BASE } from '../lib/apiBase'
 import type {
+  AnalyzeWorkStreamDone,
   AnalyzeWorkRequest,
   Feedback,
   GenerateQuestionRequest,
+  LivePeekResponse,
   Question,
   SessionResult,
   SummaryResponse,
@@ -11,7 +13,27 @@ import type {
 export type QuizApi = {
   generateQuestion(request: GenerateQuestionRequest): Promise<Question>
   generateQuestions(request: GenerateQuestionRequest, count: number): Promise<Question[]>
+  warmQuestionQueue(
+    sessionId: string,
+    request: GenerateQuestionRequest,
+    totalNeeded: number,
+  ): Promise<void>
+  dequeueQuestion(sessionId: string): Promise<Question | null>
+  refillQuestionQueue(
+    sessionId: string,
+    request: GenerateQuestionRequest,
+    remaining: number,
+  ): Promise<void>
+  livePeek(
+    imageBase64: string,
+    question: string,
+    correctAnswer?: string,
+  ): Promise<LivePeekResponse>
   analyzeWork(request: AnalyzeWorkRequest): Promise<Feedback>
+  analyzeWorkStream(
+    request: AnalyzeWorkRequest,
+    onDelta: (text: string) => void,
+  ): Promise<Feedback>
   generateSummary(results: SessionResult[]): Promise<SummaryResponse>
 }
 
@@ -54,6 +76,50 @@ function buildBatchBody(request: GenerateQuestionRequest, count: number) {
   }
 }
 
+function buildAnalyzeWorkBody(request: AnalyzeWorkRequest) {
+  const body: Record<string, unknown> = {
+    correct_answer: request.question.answer,
+    prior_errors: [],
+  }
+  if (request.submission.answerText) {
+    body.work_text = request.submission.answerText
+  } else if (request.submission.whiteboardImageBase64) {
+    body.image_base64 = request.submission.whiteboardImageBase64
+  } else if (request.submission.uploadedWorkFileBase64) {
+    body.image_base64 = request.submission.uploadedWorkFileBase64
+  } else {
+    body.work_text = '(no answer provided)'
+  }
+  return body
+}
+
+function mapWorkAnalysis(data: AnalyzeWorkStreamDone, difficulty: Question['difficulty']): Feedback {
+  const correct = data.correct ?? false
+  return {
+    correct,
+    score: correct ? 1 : 0.35,
+    feedback: data.feedback_text ?? '',
+    errorPatterns: !correct && data.conceptual_gap ? [data.conceptual_gap] : [],
+    strengths: correct ? ['Correct answer and approach'] : [],
+    suggestedNextStep: !correct
+      ? (data.conceptual_gap ?? 'Review the relevant concept and try again')
+      : 'Try a more challenging variation',
+    recommendedDifficulty: difficulty,
+  }
+}
+
+function parseSseBlock(block: string) {
+  let event = 'message'
+  const data: string[] = []
+
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    if (line.startsWith('data:')) data.push(line.slice(5).trim())
+  }
+
+  return { event, data: data.join('\n') }
+}
+
 export const httpQuizApi: QuizApi = {
   async generateQuestions(request, count) {
     let res: Response
@@ -79,46 +145,119 @@ export const httpQuizApi: QuizApi = {
     return data
   },
 
+  async warmQuestionQueue(sessionId, request, totalNeeded) {
+    await fetch(`${API_BASE}/question-queue/warm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...buildBatchBody(request, Math.min(3, Math.max(1, totalNeeded))),
+        session_id: sessionId,
+        total_needed: totalNeeded,
+      }),
+    })
+  },
+
+  async dequeueQuestion(sessionId) {
+    const res = await fetch(`${API_BASE}/question-queue/next`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId }),
+    })
+    if (res.status === 204 || res.status === 404) return null
+    if (!res.ok) throw new Error(await getApiError(res, 'Question queue failed'))
+
+    const data: unknown = await res.json()
+    assertQuestions([data])
+    return data as Question
+  },
+
+  async refillQuestionQueue(sessionId, request, remaining) {
+    if (remaining <= 0) return
+    await fetch(`${API_BASE}/question-queue/refill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...buildBatchBody(request, Math.min(3, Math.max(1, remaining))),
+        session_id: sessionId,
+        remaining,
+      }),
+    })
+  },
+
   async generateQuestion(request) {
     const questions = await httpQuizApi.generateQuestions(request, 1)
     return questions[0]
   },
 
-  async analyzeWork(request) {
-    const body: Record<string, unknown> = {
-      correct_answer: request.question.answer,
-      prior_errors: [],
-    }
-    if (request.submission.answerText) {
-      body.work_text = request.submission.answerText
-    } else if (request.submission.whiteboardImageBase64) {
-      body.image_base64 = request.submission.whiteboardImageBase64
-    } else if (request.submission.uploadedWorkFileBase64) {
-      body.image_base64 = request.submission.uploadedWorkFileBase64
-    } else {
-      body.work_text = '(no answer provided)'
-    }
+  async livePeek(imageBase64, question, correctAnswer) {
+    const res = await fetch(`${API_BASE}/live-peek`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_base64: imageBase64,
+        question,
+        correct_answer: correctAnswer,
+      }),
+    })
+    if (!res.ok) throw new Error(await getApiError(res, 'Live peek failed'))
+    return res.json()
+  },
 
+  async analyzeWork(request) {
     const res = await fetch(`${API_BASE}/analyze-work`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(buildAnalyzeWorkBody(request)),
     })
     if (!res.ok) throw new Error(`Work analysis failed: ${res.status}`)
     const data = await res.json()
 
-    const correct: boolean = data.correct ?? false
-    return {
-      correct,
-      score: correct ? 1 : 0.35,
-      feedback: data.feedback_text ?? '',
-      errorPatterns: !correct && data.conceptual_gap ? [data.conceptual_gap] : [],
-      strengths: correct ? ['Correct answer and approach'] : [],
-      suggestedNextStep: !correct
-        ? (data.conceptual_gap ?? 'Review the relevant concept and try again')
-        : 'Try a more challenging variation',
-      recommendedDifficulty: request.question.difficulty,
+    return mapWorkAnalysis(data, request.question.difficulty)
+  },
+
+  async analyzeWorkStream(request, onDelta) {
+    const res = await fetch(`${API_BASE}/analyze-work/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildAnalyzeWorkBody(request)),
+    })
+    if (!res.ok || !res.body) {
+      return httpQuizApi.analyzeWork(request)
     }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let finalPayload: AnalyzeWorkStreamDone | null = null
+
+    const handleBlock = (block: string) => {
+      const { event, data } = parseSseBlock(block)
+      if (!data) return
+      const parsed = JSON.parse(data)
+      if (event === 'delta') {
+        onDelta(String(parsed.text ?? ''))
+      } else if (event === 'done') {
+        finalPayload = parsed as AnalyzeWorkStreamDone
+      } else if (event === 'error') {
+        throw new Error(String(parsed.detail ?? 'Streaming analysis failed.'))
+      }
+    }
+
+    while (true) {
+      const { value, done } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done })
+
+      const blocks = buffer.split(/\r?\n\r?\n/)
+      buffer = blocks.pop() ?? ''
+      for (const block of blocks) handleBlock(block)
+
+      if (done) break
+    }
+
+    if (buffer.trim()) handleBlock(buffer)
+    if (!finalPayload) throw new Error('Streaming analysis ended without final feedback.')
+
+    return mapWorkAnalysis(finalPayload, request.question.difficulty)
   },
 
   async generateSummary(results) {

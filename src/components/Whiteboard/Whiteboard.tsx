@@ -19,10 +19,11 @@ export type WhiteboardHandle = {
 
 type WhiteboardProps = {
   className?: string
+  onChange?: () => void
 }
 
 export const Whiteboard = forwardRef<WhiteboardHandle, WhiteboardProps>(
-  function Whiteboard({ className }, ref) {
+  function Whiteboard({ className, onChange }, ref) {
     const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
     const [ready, setReady] = useState(false)
 
@@ -49,7 +50,8 @@ export const Whiteboard = forwardRef<WhiteboardHandle, WhiteboardProps>(
 
     const clear = useCallback(() => {
       apiRef.current?.resetScene()
-    }, [])
+      onChange?.()
+    }, [onChange])
 
     const hasContent = useCallback((): boolean => {
       const api = apiRef.current
@@ -64,7 +66,11 @@ export const Whiteboard = forwardRef<WhiteboardHandle, WhiteboardProps>(
     ])
 
     return (
-      <div className={`whiteboard ${className ?? ''}`.trim()}>
+      <div
+        className={`whiteboard ${className ?? ''}`.trim()}
+        onPointerCancel={onChange}
+        onPointerUp={onChange}
+      >
         {!ready && <p className="whiteboard-loading">Loading whiteboard…</p>}
         <Excalidraw
           excalidrawAPI={(api) => {

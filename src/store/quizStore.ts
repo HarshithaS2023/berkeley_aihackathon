@@ -60,6 +60,15 @@ function maybePrefetchQuestions(
   if (stillNeeded <= 0 || remainingInQueue > 1) return
 
   prefetchInFlight = true
+  if (state.sessionId) {
+    void quizApi
+      .refillQuestionQueue(state.sessionId, buildGenerateRequest(state), stillNeeded)
+      .finally(() => {
+        prefetchInFlight = false
+      })
+    return
+  }
+
   void fetchQuestionBatch(state)
     .then((questions) => {
       if (questions.length === 0) return
@@ -94,6 +103,7 @@ const defaultSettings: QuizSettings = {
 type QuizActions = {
   setSettings: (settings: Partial<QuizSettings>) => void
   setSourceProfile: (sourceProfile: SourceProfile) => void
+  warmQuestionQueue: (totalNeeded?: number) => string | null
   startQuiz: () => Promise<void>
   generateNextQuestion: () => Promise<void>
   tickTimer: () => void
@@ -111,6 +121,7 @@ const initialState: QuizSessionState = {
   phase: 'setup',
   settings: defaultSettings,
   sourceProfile: null,
+  sessionId: null,
   currentQuestion: null,
   currentDifficulty: defaultSettings.startingDifficulty,
   questionHistory: [],
@@ -121,6 +132,7 @@ const initialState: QuizSessionState = {
   elapsedSeconds: 0,
   hintsUsed: 0,
   visibleHints: [],
+  streamingFeedback: null,
   error: null,
 }
 
@@ -134,9 +146,31 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
 
   setSourceProfile: (sourceProfile) => set({ sourceProfile }),
 
+  warmQuestionQueue: (totalNeeded) => {
+    const state = get()
+    if (!state.sourceProfile) return null
+
+    const sessionId = crypto.randomUUID()
+    set({ sessionId })
+    void quizApi
+      .warmQuestionQueue(
+        sessionId,
+        buildGenerateRequest({
+          ...state,
+          sessionId,
+          currentDifficulty: state.settings.startingDifficulty,
+        }),
+        totalNeeded ?? state.settings.numQuestions,
+      )
+      .catch(() => {
+        // generateNextQuestion falls back to synchronous generation.
+      })
+    return sessionId
+  },
+
   startQuiz: async () => {
     prefetchInFlight = false
-    const { settings } = get()
+    const { settings, sessionId } = get()
     set({
       phase: 'generating',
       results: [],
@@ -144,7 +178,9 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
       questionQueue: [],
       weakAreas: [],
       summary: null,
+      sessionId,
       currentDifficulty: settings.startingDifficulty,
+      streamingFeedback: null,
       error: null,
     })
     await get().generateNextQuestion()
@@ -163,6 +199,7 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
         elapsedSeconds: 0,
         hintsUsed: 0,
         visibleHints: [],
+        streamingFeedback: null,
       })
       maybePrefetchQuestions(get, set)
       return
@@ -176,6 +213,23 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
     set({ phase: 'generating', error: null })
 
     try {
+      if (state.sessionId) {
+        const queuedQuestion = await quizApi.dequeueQuestion(state.sessionId)
+        if (queuedQuestion) {
+          set({
+            phase: 'answering',
+            currentQuestion: queuedQuestion,
+            questionHistory: [...state.questionHistory, queuedQuestion],
+            elapsedSeconds: 0,
+            hintsUsed: 0,
+            visibleHints: [],
+            streamingFeedback: null,
+          })
+          maybePrefetchQuestions(get, set)
+          return
+        }
+      }
+
       const questions = await fetchQuestionBatch(state)
       if (questions.length === 0) {
         set({ phase: 'error', error: 'No questions were generated.' })
@@ -192,6 +246,7 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
         elapsedSeconds: 0,
         hintsUsed: 0,
         visibleHints: [],
+        streamingFeedback: null,
       })
       maybePrefetchQuestions(get, set)
     } catch (error) {
@@ -226,13 +281,19 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
       hintsUsed: state.hintsUsed,
     }
 
-    set({ phase: 'submitting', error: null })
+    set({ phase: 'submitting', streamingFeedback: '', error: null })
 
     try {
-      const feedback = await quizApi.analyzeWork({
-        question: state.currentQuestion,
-        submission: packagedSubmission,
-      })
+      const feedback = await quizApi.analyzeWorkStream(
+        {
+          question: state.currentQuestion,
+          submission: packagedSubmission,
+        },
+        (delta) =>
+          set((current) => ({
+            streamingFeedback: `${current.streamingFeedback ?? ''}${delta}`,
+          })),
+      )
       const results = [
         ...state.results,
         {
@@ -242,15 +303,19 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
         },
       ]
 
+      const weakAreas = collectWeakAreas(results)
+      const currentDifficulty = calculateNextDifficulty(
+        state.currentDifficulty,
+        results,
+        feedback.recommendedDifficulty,
+      )
+
       set({
         phase: 'feedback',
         results,
-        weakAreas: collectWeakAreas(results),
-        currentDifficulty: calculateNextDifficulty(
-          state.currentDifficulty,
-          results,
-          feedback.recommendedDifficulty,
-        ),
+        weakAreas,
+        currentDifficulty,
+        streamingFeedback: null,
       })
       maybePrefetchQuestions(get, set)
     } catch (error) {
@@ -265,7 +330,7 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
       return
     }
 
-    set({ phase: 'submitting' })
+    set({ phase: 'submitting', streamingFeedback: null })
     try {
       const summary = await quizApi.generateSummary(state.results)
       set({ phase: 'summary', summary })
