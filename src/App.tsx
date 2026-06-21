@@ -10,8 +10,12 @@ import './App.css'
 import lambMascot from './assets/lamb-mascot.png'
 import HomePage from './components/HomePage'
 import SummaryPage from './components/SummaryPage'
+import { ReadAloudButton } from './components/Tts/ReadAloudButton'
+import { TtsSpeedControl } from './components/Tts/TtsSpeedControl'
+import './components/Tts/Tts.css'
 import { WorkPanel } from './components/WorkPanel/WorkPanel'
 import { useQuestionTimer } from './hooks/useQuestionTimer'
+import { useTts } from './hooks/useTts'
 import { useQuizStore } from './store/quizStore'
 
 const formatTime = (seconds: number) =>
@@ -41,9 +45,12 @@ function QuizScreen() {
   const results = useQuizStore((state) => state.results)
   const elapsedSeconds = useQuizStore((state) => state.elapsedSeconds)
   const visibleHints = useQuizStore((state) => state.visibleHints)
+  const hintsUsed = useQuizStore((state) => state.hintsUsed)
   const revealHint = useQuizStore((state) => state.revealHint)
   const submitCurrentQuestion = useQuizStore((state) => state.submitCurrentQuestion)
   const continueQuiz = useQuizStore((state) => state.continueQuiz)
+
+  const { speak, stop, prefetch, speed, setSpeed, isSpeaking, isLoading } = useTts()
 
   useQuestionTimer()
 
@@ -52,6 +59,22 @@ function QuizScreen() {
     if (phase === 'setup') navigate('/')
     if (phase === 'error') navigate('/error')
   }, [phase, navigate])
+
+  useEffect(() => {
+    if (!currentQuestion || phase === 'feedback') return
+    prefetch(currentQuestion.question)
+    for (const hint of currentQuestion.hints) {
+      prefetch(`Hint: ${hint}`)
+    }
+  }, [currentQuestion?.id, phase, prefetch, currentQuestion?.question, currentQuestion?.hints])
+
+  useEffect(() => {
+    if (phase !== 'feedback') return
+    const latest = results.at(-1)?.feedback
+    if (!latest) return
+    const speech = `${latest.feedback} ${latest.suggestedNextStep}`.trim()
+    if (speech) prefetch(speech)
+  }, [phase, results, prefetch])
 
   if (phase === 'generating') {
     return <StatusScreen message="Growing your next question…" />
@@ -70,6 +93,16 @@ function QuizScreen() {
     phase === 'feedback' ? results.length : results.length + 1
   const safeQuestionNumber = Math.min(displayedQuestionNumber, settings.numQuestions)
   const progress = (safeQuestionNumber / settings.numQuestions) * 100
+
+  const feedbackSpeech = latestFeedback
+    ? `${latestFeedback.feedback} ${latestFeedback.suggestedNextStep}`.trim()
+    : ''
+
+  const handleShowHint = () => {
+    const nextHint = currentQuestion.hints[hintsUsed]
+    revealHint()
+    if (nextHint) void speak(`Hint: ${nextHint}`)
+  }
 
   return (
     <main className="quiz-page">
@@ -108,6 +141,7 @@ function QuizScreen() {
             </svg>
             {formatTime(elapsedSeconds)}
           </span>
+          <TtsSpeedControl speed={speed} onSpeedChange={setSpeed} disabled={isSpeaking} />
         </div>
       </header>
 
@@ -122,6 +156,16 @@ function QuizScreen() {
                 {currentQuestion.concepts.join(' · ') || 'Practice question'}
               </p>
               <h1>{currentQuestion.question}</h1>
+              {!isFeedback && (
+                <ReadAloudButton
+                  text={currentQuestion.question}
+                  label="Read question"
+                  isSpeaking={isSpeaking}
+                  isLoading={isLoading}
+                  onSpeak={speak}
+                  onStop={stop}
+                />
+              )}
             </div>
           </div>
 
@@ -148,7 +192,7 @@ function QuizScreen() {
                 />
               </label>
               <WorkPanel
-                onShowHint={revealHint}
+                onShowHint={handleShowHint}
                 onSubmitWork={(work) =>
                   void submitCurrentQuestion({
                     ...work,
@@ -194,11 +238,21 @@ function QuizScreen() {
                   </div>
                 )}
                 <p>{latestFeedback.suggestedNextStep}</p>
+                {feedbackSpeech && (
+                  <ReadAloudButton
+                    text={feedbackSpeech}
+                    label="Read feedback"
+                    isSpeaking={isSpeaking}
+                    isLoading={isLoading}
+                    onSpeak={speak}
+                    onStop={stop}
+                  />
+                )}
               </div>
               <button
                 className="quiz-primary"
                 type="button"
-                onClick={() => { setAnswerText(''); void continueQuiz() }}
+                onClick={() => { stop(); setAnswerText(''); void continueQuiz() }}
               >
                 {isLastQuestion ? 'View summary' : 'Next question'}
                 <span aria-hidden="true">→</span>

@@ -40,7 +40,6 @@ function assertQuestions(value: unknown): asserts value is Question[] {
   }
 }
 
-
 function buildBatchBody(request: GenerateQuestionRequest, count: number) {
   return {
     topics: request.sourceProfile.topics,

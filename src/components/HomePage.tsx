@@ -175,7 +175,7 @@ export default function HomePage() {
           </h1>
           <p>
             Upload homework, lecture notes, or a past test. Learn+Grow creates
-            an adaptive quiz around exactly what you’re learning.
+            an adaptive quiz around exactly what you're learning.
           </p>
 
           <div className="home-benefits">
@@ -196,7 +196,7 @@ export default function HomePage() {
           <div className="mascot-stage">
             <div className="mascot-message">
               <strong>Ready when you are.</strong>
-              <span>I’ll build the practice set.</span>
+              <span>I'll build the practice set.</span>
             </div>
             <div className="mascot-orbit mascot-orbit-one" />
             <div className="mascot-orbit mascot-orbit-two" />
