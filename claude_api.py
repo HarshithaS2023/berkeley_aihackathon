@@ -475,8 +475,8 @@ async def next_queued_question(body: QuestionQueueNextRequest):
 
     ensure_question_queue_filling(body.session_id)
     try:
-        question = await asyncio.wait_for(queue.questions.get(), timeout=2.0)
-    except asyncio.TimeoutError:
+        question = queue.questions.get_nowait()
+    except asyncio.QueueEmpty:
         return Response(status_code=204)
 
     ensure_question_queue_filling(body.session_id)

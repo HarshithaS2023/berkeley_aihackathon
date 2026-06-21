@@ -16,6 +16,7 @@ import type {
 // Generate against the latest graded result so queued questions never use a
 // stale difficulty level.
 const BATCH_SIZE = 1
+let prefetchInFlight = false
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Something went wrong.'
@@ -179,6 +180,34 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
 
     set({ phase: 'generating', error: null })
 
+    // If a prefetch is already in flight, wait for it rather than firing a second generate.
+    if (prefetchInFlight) {
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(resolve, 30000)
+        const interval = setInterval(() => {
+          if (!prefetchInFlight || get().questionQueue.length > 0) {
+            clearInterval(interval)
+            clearTimeout(timeout)
+            resolve()
+          }
+        }, 150)
+      })
+      const fresh = get()
+      if (fresh.questionQueue.length > 0) {
+        const [next, ...rest] = fresh.questionQueue
+        set({
+          phase: 'answering',
+          currentQuestion: next,
+          questionQueue: rest,
+          elapsedSeconds: 0,
+          hintsUsed: 0,
+          visibleHints: [],
+          streamingFeedback: null,
+        })
+        return
+      }
+    }
+
     try {
       if (state.sessionId) {
         const queuedQuestion = await quizApi.dequeueQuestion(state.sessionId)
@@ -279,23 +308,33 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
       )
 
       let sessionId = state.sessionId
+      const nextState = { ...state, results, weakAreas, currentDifficulty }
       if (sessionId && results.length < state.settings.numQuestions) {
-        const nextState = {
-          ...state,
-          results,
-          weakAreas,
-          currentDifficulty,
-        }
         try {
-          await quizApi.refillQuestionQueue(
+          void quizApi.refillQuestionQueue(
             sessionId,
             buildGenerateRequest(nextState),
             state.settings.numQuestions - results.length,
           )
         } catch {
-          // Fall back to synchronous generation at the updated difficulty.
           sessionId = null
         }
+      }
+
+      // Prefetch the next question in the background while the user reads feedback.
+      if (results.length < state.settings.numQuestions && !prefetchInFlight) {
+        prefetchInFlight = true
+        void fetchQuestionBatch(nextState)
+          .then((questions) => {
+            prefetchInFlight = false
+            if (questions.length > 0) {
+              set((cur) => ({
+                questionQueue: [...cur.questionQueue, ...questions],
+                questionHistory: [...cur.questionHistory, ...questions],
+              }))
+            }
+          })
+          .catch(() => { prefetchInFlight = false })
       }
 
       set({
@@ -337,6 +376,7 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
   },
 
   resetQuiz: () => {
+    prefetchInFlight = false
     set({ ...initialState })
   },
 }))
