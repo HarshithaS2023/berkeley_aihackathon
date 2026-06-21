@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react'
-import type { WorkSubmissionInput } from '../../types'
+import { useLivePeek } from '../../hooks/useLivePeek'
+import type { Question, WorkSubmissionInput } from '../../types'
 import { getWorkSubmission } from '../../lib/workSubmission'
 import { Whiteboard, type WhiteboardHandle } from '../Whiteboard/Whiteboard'
 import { WorkUpload } from '../Upload/WorkUpload'
 import './WorkPanel.css'
 
 type WorkPanelProps = {
+  question: Question | null
   onSubmitWork: (work: WorkSubmissionInput) => void | Promise<void>
   onShowHint?: () => void
   disabled?: boolean
@@ -13,6 +15,7 @@ type WorkPanelProps = {
 }
 
 export function WorkPanel({
+  question,
   onSubmitWork,
   onShowHint,
   disabled,
@@ -24,6 +27,11 @@ export function WorkPanel({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const isBusy = disabled || submitting || isSubmitting
+  const livePeek = useLivePeek({
+    whiteboardRef,
+    question,
+    enabled: !isBusy && !workFile,
+  })
 
   async function handleSubmit() {
     setError(null)
@@ -60,7 +68,22 @@ export function WorkPanel({
         <p>Draw directly below. Your canvas is submitted automatically.</p>
       </div>
 
-      <Whiteboard ref={whiteboardRef} className="work-panel-whiteboard" />
+      <Whiteboard
+        ref={whiteboardRef}
+        className="work-panel-whiteboard"
+        onChange={livePeek.notifyChange}
+      />
+
+      {(livePeek.peek || livePeek.loading || livePeek.error) && (
+        <div className="work-panel-coach">
+          <strong>Coach</strong>
+          <p>
+            {livePeek.loading && !livePeek.peek
+              ? 'Taking a quick look at your work…'
+              : livePeek.error ?? livePeek.peek}
+          </p>
+        </div>
+      )}
 
       <div className="work-panel-footer">
         <WorkUpload

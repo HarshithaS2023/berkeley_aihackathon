@@ -46,6 +46,30 @@
   min-height: 310px;
 }
 
+.work-panel-coach {
+  display: grid;
+  gap: 3px;
+  margin-top: -4px;
+  padding: 10px 12px;
+  border: 1px solid #dce4cd;
+  border-radius: 12px;
+  color: #536246;
+  background: #f2f6e9;
+}
+
+.work-panel-coach strong {
+  color: #6e8559;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.work-panel-coach p {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
 .work-panel-footer {
   display: flex;
   align-items: flex-start;

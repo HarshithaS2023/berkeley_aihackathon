@@ -33,6 +33,7 @@ export default function HomePage() {
 
   const setSettings = useQuizStore((state) => state.setSettings)
   const setSourceProfile = useQuizStore((state) => state.setSourceProfile)
+  const warmQuestionQueue = useQuizStore((state) => state.warmQuestionQueue)
   const startQuiz = useQuizStore((state) => state.startQuiz)
 
   const readFileAsBase64 = (file: File): Promise<UploadedFile> =>
@@ -133,6 +134,7 @@ export default function HomePage() {
       })
     }
 
+    warmQuestionQueue(numQuestions)
     await startQuiz()
     setIsAnalyzing(false)
 

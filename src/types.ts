@@ -66,6 +66,23 @@ export type AnalyzeWorkRequest = {
   priorErrorPatterns: string[]
 }
 
+export type AnalyzeWorkStreamDone = {
+  correct: boolean
+  error_found: boolean
+  is_repeated_pattern: boolean
+  conceptual_gap: string
+  feedback_text: string
+  submitted_answer?: string
+  expected_answer?: string
+  numerical_difference?: number | null
+  first_incorrect_step?: string
+  error_type?: string
+}
+
+export type LivePeekResponse = {
+  peek: string
+}
+
 export type Feedback = {
   correct: boolean
   score: number
@@ -101,6 +118,7 @@ export type QuizSessionState = {
   phase: QuizPhase
   settings: QuizSettings
   sourceProfile: SourceProfile | null
+  sessionId: string | null
   currentQuestion: Question | null
   currentDifficulty: Difficulty
   questionHistory: Question[]
@@ -111,5 +129,6 @@ export type QuizSessionState = {
   elapsedSeconds: number
   hintsUsed: number
   visibleHints: string[]
+  streamingFeedback: string | null
   error: string | null
 }
