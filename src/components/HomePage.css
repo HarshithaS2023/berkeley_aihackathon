@@ -258,9 +258,9 @@
 
 .mascot-message {
   position: absolute;
-  z-index: 3;
+  z-index: 1;
   top: -43px;
-  left: 0;
+  left: -1;
   display: grid;
   min-width: 180px;
   padding: 11px 14px;
