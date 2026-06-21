@@ -522,6 +522,53 @@ async def generate_questions_batch(body: BatchQuestionRequest):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+class CompetitionQuestionsRequest(BaseModel):
+    topics: list[str]
+    concepts: list[str]
+    style_notes: str = ""
+    starting_difficulty: int = 3
+    problem_type: str = "word_problem"
+    num_questions: int = 5
+
+
+@app.post("/generate-competition-questions")
+async def generate_competition_questions(body: CompetitionQuestionsRequest):
+    """Generate all questions for a competition session upfront with a difficulty ramp.
+    Both players will receive the exact same pre-generated question set."""
+    n = body.num_questions
+    d = min(max(body.starting_difficulty, 1), 4)  # cap base so ramp fits in 1-5
+
+    # Difficulty ramp: 40% easy, 40% medium+1, 20% hard+2
+    g1 = max(1, round(n * 0.4))
+    g3 = max(0, round(n * 0.2))
+    g2 = n - g1 - g3
+    groups = [(count, min(d + offset, 5)) for count, offset in [(g1, 0), (g2, 1), (g3, 2)] if count > 0]
+
+    questions: list[dict] = []
+    previous: list[str] = []
+
+    try:
+        for count, difficulty in groups:
+            batch = await create_question_batch(
+                BatchQuestionRequest(
+                    topics=body.topics,
+                    concepts=body.concepts,
+                    style_notes=body.style_notes,
+                    difficulty=difficulty,
+                    problem_type=body.problem_type,
+                    weak_areas=[],
+                    previous_questions=previous,
+                    count=count,
+                )
+            )
+            questions.extend(batch)
+            previous.extend(q["question"] for q in batch)
+    except APIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return questions
+
+
 # ── Analyze Work (single collapsed call) ──────────────────────────────────────
 
 class WorkSubmission(BaseModel):

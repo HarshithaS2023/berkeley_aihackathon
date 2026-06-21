@@ -6,13 +6,16 @@ import type {
   GenerateQuestionRequest,
   LivePeekResponse,
   Question,
+  QuizSettings,
   SessionResult,
+  SourceProfile,
   SummaryResponse,
 } from '../types'
 
 export type QuizApi = {
   generateQuestion(request: GenerateQuestionRequest): Promise<Question>
   generateQuestions(request: GenerateQuestionRequest, count: number): Promise<Question[]>
+  generateCompetitionQuestions(sourceProfile: SourceProfile, settings: QuizSettings): Promise<Question[]>
   warmQuestionQueue(
     sessionId: string,
     request: GenerateQuestionRequest,
@@ -163,6 +166,30 @@ export const httpQuizApi: QuizApi = {
       throw new Error(await getApiError(res, 'Question generation failed'))
     }
 
+    const data: unknown = await res.json()
+    assertQuestions(data)
+    return data
+  },
+
+  async generateCompetitionQuestions(sourceProfile, settings) {
+    let res: Response
+    try {
+      res = await fetch(`${API_BASE}/generate-competition-questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topics: sourceProfile.topics,
+          concepts: sourceProfile.concepts,
+          style_notes: sourceProfile.styleNotes,
+          starting_difficulty: settings.startingDifficulty,
+          problem_type: settings.problemType,
+          num_questions: settings.numQuestions,
+        }),
+      })
+    } catch {
+      throw new Error(`Cannot reach the quiz backend at ${API_BASE}. Start the backend and try again.`)
+    }
+    if (!res.ok) throw new Error(await getApiError(res, 'Competition question generation failed'))
     const data: unknown = await res.json()
     assertQuestions(data)
     return data
