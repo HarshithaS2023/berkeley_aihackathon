@@ -1,20 +1,31 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useNavigate,
+} from 'react-router-dom'
 import './App.css'
+import lambMascot from './assets/lamb-mascot.png'
 import HomePage from './components/HomePage'
 import SummaryPage from './components/SummaryPage'
 import { WorkPanel } from './components/WorkPanel/WorkPanel'
-import { useQuizStore } from './store/quizStore'
 import { useQuestionTimer } from './hooks/useQuestionTimer'
+import { useQuizStore } from './store/quizStore'
 
 const formatTime = (seconds: number) =>
-  `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+  `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(
+    seconds % 60,
+  ).padStart(2, '0')}`
 
 function StatusScreen({ message }: { message: string }) {
   return (
-    <main className="shell status">
+    <main className="quiz-status">
+      <img src={lambMascot} alt="" />
       <div className="spinner" />
       <h2>{message}</h2>
+      <p>Learn+Grow is getting everything ready.</p>
     </main>
   )
 }
@@ -23,16 +34,20 @@ function QuizScreen() {
   const [answerText, setAnswerText] = useState('')
   const navigate = useNavigate()
 
-  const phase = useQuizStore((s) => s.phase)
-  const settings = useQuizStore((s) => s.settings)
-  const currentQuestion = useQuizStore((s) => s.currentQuestion)
-  const currentDifficulty = useQuizStore((s) => s.currentDifficulty)
-  const results = useQuizStore((s) => s.results)
-  const elapsedSeconds = useQuizStore((s) => s.elapsedSeconds)
-  const visibleHints = useQuizStore((s) => s.visibleHints)
-  const revealHint = useQuizStore((s) => s.revealHint)
-  const submitCurrentQuestion = useQuizStore((s) => s.submitCurrentQuestion)
-  const continueQuiz = useQuizStore((s) => s.continueQuiz)
+  const phase = useQuizStore((state) => state.phase)
+  const settings = useQuizStore((state) => state.settings)
+  const currentQuestion = useQuizStore((state) => state.currentQuestion)
+  const currentDifficulty = useQuizStore(
+    (state) => state.currentDifficulty,
+  )
+  const results = useQuizStore((state) => state.results)
+  const elapsedSeconds = useQuizStore((state) => state.elapsedSeconds)
+  const visibleHints = useQuizStore((state) => state.visibleHints)
+  const revealHint = useQuizStore((state) => state.revealHint)
+  const submitCurrentQuestion = useQuizStore(
+    (state) => state.submitCurrentQuestion,
+  )
+  const continueQuiz = useQuizStore((state) => state.continueQuiz)
 
   useQuestionTimer()
 
@@ -42,8 +57,12 @@ function QuizScreen() {
     if (phase === 'error') navigate('/error')
   }, [phase, navigate])
 
-  if (phase === 'generating') return <StatusScreen message="Generating your next question…" />
-  if (phase === 'submitting') return <StatusScreen message="Analyzing your work…" />
+  if (phase === 'generating') {
+    return <StatusScreen message="Growing your next question…" />
+  }
+  if (phase === 'submitting') {
+    return <StatusScreen message="Reviewing your work…" />
+  }
   if (!currentQuestion) {
     return <StatusScreen message="Preparing your quiz…" />
   }
@@ -51,76 +70,156 @@ function QuizScreen() {
   const latestFeedback = results.at(-1)?.feedback
   const isFeedback = phase === 'feedback' && latestFeedback
   const isLastQuestion = results.length >= settings.numQuestions
-  const displayedQuestionNumber = phase === 'feedback' ? results.length : results.length + 1
+  const displayedQuestionNumber =
+    phase === 'feedback' ? results.length : results.length + 1
+  const safeQuestionNumber = Math.min(
+    displayedQuestionNumber,
+    settings.numQuestions,
+  )
+  const progress = (safeQuestionNumber / settings.numQuestions) * 100
 
   return (
-    <main className="shell quiz">
-      <header className="quiz-header">
-        <span>
-          Question {Math.min(displayedQuestionNumber, settings.numQuestions)} of {settings.numQuestions}
-        </span>
-        <span className="difficulty">Difficulty {currentDifficulty}/5</span>
-        <span className="timer">{formatTime(elapsedSeconds)}</span>
+    <main className="quiz-page">
+      <header className="quiz-nav">
+        <button
+          type="button"
+          className="quiz-brand"
+          onClick={() => navigate('/')}
+          aria-label="Return home"
+        >
+          <img src={lambMascot} alt="" />
+          <span>
+            <strong>Learn+Grow</strong>
+            <small>Adaptive practice</small>
+          </span>
+        </button>
+
+        <div className="quiz-nav-progress">
+          <span>
+            Question {safeQuestionNumber} of {settings.numQuestions}
+          </span>
+          <div>
+            <i style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+
+        <div className="quiz-meta">
+          <span className="difficulty">
+            <i />
+            Level {currentDifficulty}
+          </span>
+          <span className="timer">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="13" r="8" />
+              <path d="M12 9v4l2.5 1.5M9 3h6" />
+            </svg>
+            {formatTime(elapsedSeconds)}
+          </span>
+        </div>
       </header>
 
-      <section className="question-card">
-        <p className="eyebrow">{currentQuestion.concepts.join(' · ')}</p>
-        <h2>{currentQuestion.question}</h2>
-
-        {visibleHints.map((hint) => (
-          <p className="hint" key={hint}>Hint: {hint}</p>
-        ))}
-
-        {!isFeedback && (
-          <>
-            <label>
-              Final answer (optional)
-              <input
-                value={answerText}
-                onChange={(e) => setAnswerText(e.target.value)}
-                placeholder="Enter your answer"
-              />
-            </label>
-            <WorkPanel
-              onShowHint={revealHint}
-              onSubmitWork={(work) =>
-                void submitCurrentQuestion({
-                  ...work,
-                  answerText: answerText.trim() || undefined,
-                })
-              }
-            />
-          </>
-        )}
-
-        {isFeedback && (
-          <div className={`feedback ${latestFeedback.correct ? 'correct' : 'incorrect'}`}>
-            <p className="eyebrow">{latestFeedback.correct ? 'Correct' : 'Keep working'}</p>
-            <h3>{latestFeedback.feedback}</h3>
-            <p>{latestFeedback.suggestedNextStep}</p>
-            <button
-              className="primary"
-              type="button"
-              onClick={() => { setAnswerText(''); void continueQuiz() }}
-            >
-              {isLastQuestion ? 'View summary' : 'Next question'}
-            </button>
+      <div className="quiz-shell">
+        <section className="question-card">
+          <div className="question-heading">
+            <div className="question-number">
+              {String(safeQuestionNumber).padStart(2, '0')}
+            </div>
+            <div className="question-content">
+              <p className="question-kicker">
+                {currentQuestion.concepts.join(' · ') || 'Practice question'}
+              </p>
+              <h1>{currentQuestion.question}</h1>
+            </div>
           </div>
-        )}
-      </section>
+
+          {visibleHints.map((hint) => (
+            <div className="hint" key={hint}>
+              <span>✦</span>
+              <div>
+                <strong>A gentle nudge</strong>
+                <p>{hint}</p>
+              </div>
+            </div>
+          ))}
+
+          {!isFeedback && (
+            <div className="quiz-answer-area">
+              <label className="final-answer">
+                <span>
+                  Final answer <small>optional</small>
+                </span>
+                <input
+                  value={answerText}
+                  onChange={(event) => setAnswerText(event.target.value)}
+                  placeholder="Type your final answer here"
+                />
+              </label>
+
+              <WorkPanel
+                onShowHint={revealHint}
+                onSubmitWork={(work) =>
+                  void submitCurrentQuestion({
+                    ...work,
+                    answerText: answerText.trim() || undefined,
+                  })
+                }
+              />
+            </div>
+          )}
+
+          {isFeedback && (
+            <div
+              className={`feedback ${
+                latestFeedback.correct ? 'correct' : 'incorrect'
+              }`}
+            >
+              <div className="feedback-icon">
+                {latestFeedback.correct ? '✓' : '↗'}
+              </div>
+              <div className="feedback-copy">
+                <span>
+                  {latestFeedback.correct ? 'Nicely done' : 'Let’s refine it'}
+                </span>
+                <h2>{latestFeedback.feedback}</h2>
+                <p>{latestFeedback.suggestedNextStep}</p>
+              </div>
+              <button
+                className="quiz-primary"
+                type="button"
+                onClick={() => {
+                  setAnswerText('')
+                  void continueQuiz()
+                }}
+              >
+                {isLastQuestion ? 'View summary' : 'Next question'}
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   )
 }
 
 function ErrorScreen() {
-  const error = useQuizStore((s) => s.error)
-  const resetQuiz = useQuizStore((s) => s.resetQuiz)
+  const error = useQuizStore((state) => state.error)
+  const resetQuiz = useQuizStore((state) => state.resetQuiz)
   const navigate = useNavigate()
+
   return (
-    <main className="shell status">
+    <main className="quiz-status error-status">
+      <img src={lambMascot} alt="" />
       <h2>Something went wrong</h2>
       <p>{error}</p>
-      <button className="primary" type="button" onClick={() => { resetQuiz(); navigate('/') }}>
+      <button
+        className="quiz-primary"
+        type="button"
+        onClick={() => {
+          resetQuiz()
+          navigate('/')
+        }}
+      >
         Start over
       </button>
     </main>

@@ -13,7 +13,5 @@ export async function getWorkSubmission(
     return { whiteboardImageBase64 }
   }
 
-  throw new Error(
-    'Upload your work or open the whiteboard and save your drawing.',
-  )
+  throw new Error('Draw on the whiteboard or upload a photo of your work.')
 }

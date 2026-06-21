@@ -80,7 +80,7 @@ export default function SummaryPage() {
         style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}
       >
         <span className="text-xl font-bold tracking-tight" style={{ color: 'var(--text-h)' }}>
-          Professor X
+          Learn+Grow
         </span>
         <span className="text-sm" style={{ color: 'var(--text)' }}>Session Summary</span>
       </header>

@@ -121,7 +121,7 @@ export default function HomePage() {
 
       <header className="home-nav">
         <a className="home-brand" href="/" aria-label="Learn+Grow home">
-          <span className="home-brand-mark">PX</span>
+          <span className="home-brand-mark">L+G</span>
           <span>
             <strong>Learn+Grow</strong>
             <small>Adaptive study partner</small>
