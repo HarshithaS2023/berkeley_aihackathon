@@ -25,16 +25,27 @@ export function useTts() {
   const [speed, setSpeedState] = useState(readStoredSpeed)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isAudioUnlocked, setIsAudioUnlocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [readySet, setReadySet] = useState<Set<string>>(new Set())
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const objectUrlRef = useRef<string | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null)
   const speakRequestRef = useRef(0)
 
   const cleanupAudio = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current = null
+    }
+    if (audioSourceRef.current) {
+      try {
+        audioSourceRef.current.stop()
+      } catch {
+        // The source may have already ended.
+      }
+      audioSourceRef.current = null
     }
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current)
@@ -49,6 +60,10 @@ export function useTts() {
       speakRequestRef.current += 1
       cleanupAudio()
       clearSpeechAudioCache()
+      if (audioContextRef.current) {
+        void audioContextRef.current.close()
+        audioContextRef.current = null
+      }
     }
   }, [cleanupAudio])
 
@@ -57,6 +72,36 @@ export function useTts() {
     localStorage.setItem(STORAGE_KEY, String(nextSpeed))
     if (audioRef.current) {
       audioRef.current.playbackRate = nextSpeed
+    }
+    if (audioSourceRef.current) {
+      audioSourceRef.current.playbackRate.value = nextSpeed
+    }
+  }, [])
+
+  const unlockAudio = useCallback(async (): Promise<boolean> => {
+    setError(null)
+    try {
+      const context = audioContextRef.current ?? new AudioContext()
+      audioContextRef.current = context
+      if (context.state !== 'running') {
+        await context.resume()
+      }
+
+      // Starting a silent buffer during the click permanently unlocks this
+      // context for later live-feedback playback.
+      const silentBuffer = context.createBuffer(1, 1, context.sampleRate)
+      const silentSource = context.createBufferSource()
+      silentSource.buffer = silentBuffer
+      silentSource.connect(context.destination)
+      silentSource.start()
+      const unlocked = context.state === 'running'
+      setIsAudioUnlocked(unlocked)
+      return unlocked
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Your browser could not enable audio.',
+      )
+      return false
     }
   }, [])
 
@@ -107,6 +152,25 @@ export function useTts() {
         const blob = await fetchSpeechAudio(trimmed)
         if (speakRequestRef.current !== requestId) return
 
+        const context = audioContextRef.current
+        if (context?.state === 'running') {
+          const audioBuffer = await context.decodeAudioData(await blob.arrayBuffer())
+          if (speakRequestRef.current !== requestId) return
+
+          const source = context.createBufferSource()
+          source.buffer = audioBuffer
+          source.playbackRate.value = speed
+          source.connect(context.destination)
+          source.onended = () => {
+            if (speakRequestRef.current === requestId) cleanupAudio()
+          }
+          audioSourceRef.current = source
+          setIsLoading(false)
+          setIsSpeaking(true)
+          source.start()
+          return
+        }
+
         const url = URL.createObjectURL(blob)
         objectUrlRef.current = url
 
@@ -141,12 +205,14 @@ export function useTts() {
   return {
     speak,
     stop,
+    unlockAudio,
     prefetch,
     isTextReady,
     speed,
     setSpeed,
     isSpeaking,
     isLoading,
+    isAudioUnlocked,
     error,
   }
 }

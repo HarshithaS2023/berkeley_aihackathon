@@ -87,6 +87,12 @@
   gap: 8px;
 }
 
+.work-panel-coach-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .coach-status-dot {
   display: inline-block;
   width: 8px;
@@ -115,6 +121,18 @@
 .work-panel-coach-heading button:hover {
   color: #44533b;
   background: #e9efdf;
+}
+
+.work-panel-coach-heading .coach-voice {
+  border: 1px solid #d8e1ca;
+  border-radius: 999px;
+  background: #f8faF3;
+}
+
+.work-panel-coach-heading .coach-voice.is-active {
+  border-color: #94ad7e;
+  color: #526c43;
+  background: #e7f0dc;
 }
 
 .work-panel-coach-copy {

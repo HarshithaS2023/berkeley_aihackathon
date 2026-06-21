@@ -83,6 +83,7 @@ export type AnalyzeWorkStreamDone = {
 
 export type LivePeekResponse = {
   peek: string
+  spoken: string
 }
 
 export type Feedback = {
