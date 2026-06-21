@@ -54,7 +54,7 @@ export function WorkPanel({
   })
 
   useEffect(() => {
-    const spoken = livePeek.spoken.trim()
+    const spoken = (livePeek.spoken ?? '').trim()
     if (
       !voiceEnabled ||
       !showLiveFeedback ||
