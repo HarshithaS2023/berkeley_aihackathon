@@ -39,11 +39,14 @@ function QuizScreen() {
   useEffect(() => {
     if (phase === 'summary') navigate('/summary')
     if (phase === 'setup') navigate('/')
+    if (phase === 'error') navigate('/error')
   }, [phase, navigate])
 
   if (phase === 'generating') return <StatusScreen message="Generating your next question…" />
   if (phase === 'submitting') return <StatusScreen message="Analyzing your work…" />
-  if (!currentQuestion) return null
+  if (!currentQuestion) {
+    return <StatusScreen message="Preparing your quiz…" />
+  }
 
   const latestFeedback = results.at(-1)?.feedback
   const isFeedback = phase === 'feedback' && latestFeedback
@@ -80,7 +83,6 @@ function QuizScreen() {
             </label>
             <WorkPanel
               onShowHint={revealHint}
-              submitting={phase === 'answering'}
               onSubmitWork={(work) =>
                 void submitCurrentQuestion({
                   ...work,

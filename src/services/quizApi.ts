@@ -16,6 +16,31 @@ export type QuizApi = {
 
 const API_BASE = 'http://localhost:3001'
 
+async function getApiError(response: Response, fallback: string) {
+  try {
+    const data = (await response.json()) as { detail?: string }
+    return data.detail ? `${fallback}: ${data.detail}` : `${fallback}: ${response.status}`
+  } catch {
+    return `${fallback}: ${response.status}`
+  }
+}
+
+function assertQuestions(value: unknown): asserts value is Question[] {
+  if (
+    !Array.isArray(value) ||
+    value.some(
+      (item) =>
+        !item ||
+        typeof item !== 'object' ||
+        typeof item.question !== 'string' ||
+        !Array.isArray(item.hints) ||
+        !Array.isArray(item.concepts),
+    )
+  ) {
+    throw new Error('The question API returned an unexpected response.')
+  }
+}
+
 function buildBatchBody(request: GenerateQuestionRequest, count: number) {
   return {
     topics: request.sourceProfile.topics,
@@ -31,13 +56,27 @@ function buildBatchBody(request: GenerateQuestionRequest, count: number) {
 
 export const httpQuizApi: QuizApi = {
   async generateQuestions(request, count) {
-    const res = await fetch(`${API_BASE}/generate-questions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildBatchBody(request, count)),
-    })
-    if (!res.ok) throw new Error(`Question generation failed: ${res.status}`)
-    return res.json() as Promise<Question[]>
+    let res: Response
+
+    try {
+      res = await fetch(`${API_BASE}/generate-questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildBatchBody(request, count)),
+      })
+    } catch {
+      throw new Error(
+        'Cannot reach the quiz backend at localhost:3001. Start the backend and try again.',
+      )
+    }
+
+    if (!res.ok) {
+      throw new Error(await getApiError(res, 'Question generation failed'))
+    }
+
+    const data: unknown = await res.json()
+    assertQuestions(data)
+    return data
   },
 
   async generateQuestion(request) {
