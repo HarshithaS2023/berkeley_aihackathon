@@ -1,11 +1,12 @@
 import { supabase } from './supabase'
-import type { QuizSettings, SessionResult, SourceProfile } from '../types'
+import type { Question, QuizSettings, SessionResult, SourceProfile } from '../types'
 
 export type CompetitionSession = {
   id: string
   code: string
   sourceProfile: SourceProfile
   settings: QuizSettings
+  questions: Question[]
   status: 'waiting' | 'active' | 'complete'
   createdAt: string
   startedAt: string | null
@@ -36,6 +37,7 @@ function toSession(row: Record<string, unknown>): CompetitionSession {
     code: row.code as string,
     sourceProfile: row.source_profile as SourceProfile,
     settings: row.settings as QuizSettings,
+    questions: (row.questions as Question[]) ?? [],
     status: row.status as CompetitionSession['status'],
     createdAt: row.created_at as string,
     startedAt: (row.started_at as string | null) ?? null,
@@ -62,6 +64,7 @@ function toParticipant(row: Record<string, unknown>): CompetitionParticipant {
 export async function createCompetitionSession(
   sourceProfile: SourceProfile,
   settings: QuizSettings,
+  questions: Question[],
 ): Promise<CompetitionSession> {
   if (!supabase) throw new Error('Supabase is not configured.')
 
@@ -72,6 +75,7 @@ export async function createCompetitionSession(
       code,
       source_profile: sourceProfile,
       settings,
+      questions,
       status: 'waiting',
     })
     .select()

@@ -12,6 +12,7 @@ import {
   type CompetitionParticipant,
   type CompetitionSession,
 } from '../lib/competition'
+import { quizApi } from '../services/quizApi'
 import type { QuizSettings, SessionResult, SourceProfile } from '../types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -156,7 +157,8 @@ export const useCompetitionStore = create<CompetitionStore>((set, get) => ({
   async createSession(sourceProfile, settings, userName) {
     try {
       set({ error: null })
-      const session = await createCompetitionSession(sourceProfile, settings)
+      const questions = await quizApi.generateCompetitionQuestions(sourceProfile, settings)
+      const session = await createCompetitionSession(sourceProfile, settings, questions)
       const me = await joinSession(session.id, userName)
       set({ session, me, rival: null, phase: 'waiting', error: null })
       subscribeToSession(session.id, set, get)

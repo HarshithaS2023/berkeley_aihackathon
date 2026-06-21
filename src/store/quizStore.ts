@@ -108,6 +108,7 @@ type QuizActions = {
   setSourceProfile: (sourceProfile: SourceProfile) => void
   warmQuestionQueue: (totalNeeded?: number) => string | null
   startQuiz: () => Promise<void>
+  startPreloadedQuiz: (questions: Question[]) => Promise<void>
   generateNextQuestion: () => Promise<void>
   tickTimer: () => void
   revealHint: () => void
@@ -182,6 +183,24 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
       weakAreas: [],
       summary: null,
       sessionId,
+      currentDifficulty: settings.startingDifficulty,
+      streamingFeedback: null,
+      error: null,
+    })
+    await get().generateNextQuestion()
+  },
+
+  startPreloadedQuiz: async (questions) => {
+    prefetchInFlight = false
+    const { settings } = get()
+    set({
+      phase: 'generating',
+      results: [],
+      questionHistory: [...questions],
+      questionQueue: [...questions],
+      weakAreas: [],
+      summary: null,
+      sessionId: null,
       currentDifficulty: settings.startingDifficulty,
       streamingFeedback: null,
       error: null,

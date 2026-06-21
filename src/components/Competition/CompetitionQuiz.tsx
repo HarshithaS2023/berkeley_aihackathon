@@ -35,7 +35,7 @@ export default function CompetitionQuiz() {
   const continueQuiz = useQuizStore((s) => s.continueQuiz)
   const setSourceProfile = useQuizStore((s) => s.setSourceProfile)
   const setSettings = useQuizStore((s) => s.setSettings)
-  const startQuiz = useQuizStore((s) => s.startQuiz)
+  const startPreloadedQuiz = useQuizStore((s) => s.startPreloadedQuiz)
 
   useQuestionTimer()
 
@@ -46,8 +46,8 @@ export default function CompetitionQuiz() {
     quizStarted.current = true
     setSourceProfile(session.sourceProfile)
     setSettings(session.settings)
-    void startQuiz()
-  }, [session, compPhase, navigate, setSourceProfile, setSettings, startQuiz])
+    void startPreloadedQuiz(session.questions)
+  }, [session, compPhase, navigate, setSourceProfile, setSettings, startPreloadedQuiz])
 
   useEffect(() => {
     if (phase !== 'feedback') return
