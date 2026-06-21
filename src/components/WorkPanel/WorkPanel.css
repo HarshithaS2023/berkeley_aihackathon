@@ -1,151 +1,129 @@
-label + .work-panel {
-  margin-top: 18px;
-}
-
 .work-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-  text-align: left;
+  display: grid;
+  gap: 13px;
 }
 
-.work-panel-header {
+.work-panel-heading {
   display: flex;
-  align-items: center;
+  align-items: end;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 20px;
 }
 
-.work-panel-header h3 {
-  margin: 0;
-  color: var(--text-h);
-  font-size: 0.84rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+.work-panel-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.work-panel-step {
+  color: #78905f;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
-.work-panel-whiteboard-saved {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--code-bg);
-}
-
-.work-panel-whiteboard-saved-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.work-panel-whiteboard-saved-header strong {
-  color: var(--text-h);
-  font-size: 0.9rem;
-}
-
-.work-panel-whiteboard-note {
+.work-panel-heading h3 {
   margin: 0;
-  font-size: 0.82rem;
-  color: var(--text);
+  color: #30392b;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.22rem;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.work-panel-heading p {
+  max-width: 330px;
+  margin: 0;
+  color: #808675;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.work-panel-whiteboard {
+  height: min(430px, 53vh);
+  min-height: 310px;
+}
+
+.work-panel-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.work-panel-footer .upload-panel {
+  flex: 1 1 320px;
+  max-width: 360px;
 }
 
 .work-panel-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-}
-
-.work-panel-actions-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 9px;
   margin-left: auto;
 }
 
 .work-panel-clear {
-  padding: 12px 0;
-  border: none;
+  padding: 10px 8px;
+  color: #747b6a;
   background: transparent;
-  color: var(--text);
-  font-size: 0.88rem;
-  font-weight: 700;
-  cursor: pointer;
+  font-size: 0.72rem;
 }
 
-.work-panel-clear:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
+.work-panel-clear:hover:not(:disabled) {
+  color: #3f4d38;
+}
+
+.work-panel-file-note {
+  margin: -5px 0 0;
+  color: #858a79;
+  font-size: 0.66rem;
 }
 
 .work-panel-error {
   margin: 0;
-  color: #dc2626;
-  font-size: 0.88rem;
+  padding: 9px 11px;
+  border: 1px solid #e3b9a9;
+  border-radius: 9px;
+  color: #984a36;
+  background: #fbede5;
+  font-size: 0.72rem;
 }
 
-.whiteboard-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.45);
-}
+@media (max-width: 760px) {
+  .work-panel-heading {
+    align-items: start;
+    flex-direction: column;
+    gap: 5px;
+  }
 
-.whiteboard-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: min(920px, 100%);
-  max-height: calc(100svh - 48px);
-  padding: 20px;
-  border-radius: 20px;
-  background: var(--bg);
-  box-shadow: var(--shadow);
-}
+  .work-panel-heading p {
+    text-align: left;
+  }
 
-.whiteboard-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
+  .work-panel-whiteboard {
+    height: 380px;
+    min-height: 280px;
+  }
 
-.whiteboard-modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--text-h);
-}
+  .work-panel-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
 
-.whiteboard-modal-close {
-  padding: 4px 10px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-}
+  .work-panel-footer .upload-panel {
+    flex-basis: auto;
+    max-width: none;
+  }
 
-.whiteboard-modal-canvas {
-  height: min(480px, calc(100svh - 220px));
-}
+  .work-panel-actions {
+    width: 100%;
+  }
 
-.whiteboard-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
+  .quiz-primary {
+    flex: 1;
+  }
 }

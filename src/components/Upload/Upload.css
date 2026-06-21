@@ -5,6 +5,38 @@
   text-align: left;
 }
 
+.upload-panel--compact .upload-dropzone {
+  box-sizing: border-box;
+  padding: 10px 13px;
+  border-width: 1px;
+  border-radius: 10px;
+  background: #f8f7eb;
+}
+
+.upload-panel--compact .upload-label {
+  gap: 1px;
+}
+
+.upload-panel--compact .upload-label-title {
+  color: #4d5846;
+  font-size: 0.72rem;
+}
+
+.upload-panel--compact .upload-label-hint {
+  color: #898e7d;
+  font-size: 0.62rem;
+}
+
+.upload-panel--compact .upload-file-info {
+  padding: 8px 10px;
+  border-color: #dedfce;
+  background: #fffef7;
+}
+
+.upload-panel--compact .upload-preview {
+  max-height: 100px;
+}
+
 .upload-dropzone {
   position: relative;
   border: 2px dashed var(--border);

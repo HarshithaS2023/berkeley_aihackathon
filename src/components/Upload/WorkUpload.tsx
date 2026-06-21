@@ -10,16 +10,22 @@ type WorkUploadProps = {
   file: File | null
   onFileChange: (file: File | null) => void
   disabled?: boolean
+  compact?: boolean
 }
 
-export function WorkUpload({ file, onFileChange, disabled }: WorkUploadProps) {
+export function WorkUpload({
+  file,
+  onFileChange,
+  disabled,
+  compact = false,
+}: WorkUploadProps) {
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
-  const previewUrl = useMemo(() => {
-    if (!file) return null
-    return createImagePreviewUrl(file)
-  }, [file])
+  const previewUrl = useMemo(
+    () => (file ? createImagePreviewUrl(file) : null),
+    [file],
+  )
 
   useEffect(() => {
     if (!previewUrl) return
@@ -41,22 +47,17 @@ export function WorkUpload({ file, onFileChange, disabled }: WorkUploadProps) {
     onFileChange(selected)
   }
 
-  function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
-    handleFileSelect(event.target.files?.[0] ?? null)
-  }
-
-  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault()
-    if (disabled) return
-    handleFileSelect(event.dataTransfer.files[0] ?? null)
-  }
-
   return (
-    <div className="upload-panel">
+    <div className={`upload-panel ${compact ? 'upload-panel--compact' : ''}`}>
       <div
-        className={`upload-dropzone ${disabled ? 'upload-dropzone--disabled' : ''}`}
+        className={`upload-dropzone ${
+          disabled ? 'upload-dropzone--disabled' : ''
+        }`}
         onDragOver={(event) => event.preventDefault()}
-        onDrop={handleDrop}
+        onDrop={(event) => {
+          event.preventDefault()
+          if (!disabled) handleFileSelect(event.dataTransfer.files[0] ?? null)
+        }}
       >
         <input
           ref={inputRef}
@@ -65,13 +66,13 @@ export function WorkUpload({ file, onFileChange, disabled }: WorkUploadProps) {
           accept="image/*"
           className="upload-input"
           disabled={disabled}
-          onChange={handleInputChange}
+          onChange={(event) =>
+            handleFileSelect(event.target.files?.[0] ?? null)
+          }
         />
         <label htmlFor={inputId} className="upload-label">
-          <span className="upload-label-title">Upload your work</span>
-          <span className="upload-label-hint">
-            Photo of written work · drag & drop or click to browse
-          </span>
+          <span className="upload-label-title">Use a photo instead</span>
+          <span className="upload-label-hint">Click or drop written work</span>
         </label>
       </div>
 
@@ -94,11 +95,9 @@ export function WorkUpload({ file, onFileChange, disabled }: WorkUploadProps) {
           </button>
         </div>
       )}
-
       {previewUrl && (
         <img src={previewUrl} alt="Work preview" className="upload-preview" />
       )}
-
       {error && <p className="upload-error">{error}</p>}
     </div>
   )
