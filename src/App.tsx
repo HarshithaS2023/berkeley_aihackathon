@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { Component, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import {
   BrowserRouter,
   Navigate,
@@ -21,6 +22,37 @@ import { WorkPanel } from './components/WorkPanel/WorkPanel'
 import { useQuestionTimer } from './hooks/useQuestionTimer'
 import { useTts } from './hooks/useTts'
 import { useQuizStore } from './store/quizStore'
+
+class QuizErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <main className="quiz-status error-status">
+          <img src={lambMascot} alt="" />
+          <h2>Something went wrong</h2>
+          <p>{(this.state.error as Error).message}</p>
+          <button
+            className="quiz-primary"
+            type="button"
+            onClick={() => this.setState({ error: null })}
+          >
+            Try again
+          </button>
+        </main>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const formatTime = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(
@@ -322,7 +354,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/quiz" element={<QuizScreen />} />
+            <Route path="/quiz" element={<QuizErrorBoundary><QuizScreen /></QuizErrorBoundary>} />
             <Route path="/error" element={<ErrorScreen />} />
             <Route path="/summary" element={<SummaryPage />} />
             <Route
