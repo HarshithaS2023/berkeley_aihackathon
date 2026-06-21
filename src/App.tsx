@@ -38,21 +38,6 @@ function StatusScreen({ message }: { message: string }) {
   )
 }
 
-function StreamingFeedbackScreen({ text }: { text: string | null }) {
-  const visibleText = text?.trim()
-
-  return (
-    <main className="quiz-status streaming-status">
-      <img src={lambMascot} alt="" />
-      <div className="spinner" />
-      <h2>Reviewing your work…</h2>
-      <div className="streaming-feedback">
-        <span>Live feedback</span>
-        <p>{visibleText || 'Reading your work and checking the reasoning…'}</p>
-      </div>
-    </main>
-  )
-}
 
 function QuizScreen() {
   const [answerText, setAnswerText] = useState('')
@@ -66,8 +51,7 @@ function QuizScreen() {
   const elapsedSeconds = useQuizStore((state) => state.elapsedSeconds)
   const visibleHints = useQuizStore((state) => state.visibleHints)
   const hintsUsed = useQuizStore((state) => state.hintsUsed)
-  const streamingFeedback = useQuizStore((state) => state.streamingFeedback)
-  const revealHint = useQuizStore((state) => state.revealHint)
+const revealHint = useQuizStore((state) => state.revealHint)
   const submitCurrentQuestion = useQuizStore((state) => state.submitCurrentQuestion)
   const continueQuiz = useQuizStore((state) => state.continueQuiz)
 
@@ -101,7 +85,7 @@ function QuizScreen() {
     return <StatusScreen message="Growing your next question…" />
   }
   if (phase === 'submitting') {
-    return <StreamingFeedbackScreen text={streamingFeedback} />
+    return <StatusScreen message="Analyzing your work…" />
   }
   if (!currentQuestion) {
     return <StatusScreen message="Preparing your quiz…" />
