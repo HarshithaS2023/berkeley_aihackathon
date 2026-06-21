@@ -4,6 +4,7 @@ import {
   collectWeakAreas,
 } from '../lib/adaptiveDifficulty'
 import { quizApi } from '../services/quizApi'
+import { saveSession } from '../services/sessionApi'
 import type {
   Question,
   QuizSessionState,
@@ -227,6 +228,15 @@ export const useQuizStore = create<QuizStore>((set, get) => ({
     try {
       const summary = await quizApi.generateSummary(state.results)
       set({ phase: 'summary', summary })
+
+      if (state.sourceProfile) {
+        void saveSession({
+          settings: state.settings,
+          sourceProfile: state.sourceProfile,
+          results: state.results,
+          summary,
+        })
+      }
     } catch (error) {
       set({ phase: 'error', error: getErrorMessage(error) })
     }
