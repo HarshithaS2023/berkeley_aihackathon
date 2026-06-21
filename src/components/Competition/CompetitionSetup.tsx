@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCompetitionStore } from '../../store/competitionStore'
 import { useQuizStore } from '../../store/quizStore'
 import { supabaseConfigured } from '../../lib/supabase'
@@ -7,19 +7,37 @@ import './Competition.css'
 
 export default function CompetitionSetup() {
   const navigate = useNavigate()
-  const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose')
+  const [searchParams] = useSearchParams()
+  const inviteCode = searchParams.get('code')?.toUpperCase() ?? ''
+
+  const [mode, setMode] = useState<'choose' | 'create' | 'join'>(inviteCode ? 'join' : 'choose')
   const [userName, setUserName] = useState('')
-  const [joinCode, setJoinCode] = useState('')
+  const [joinCode, setJoinCode] = useState(inviteCode)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const createSession = useCompetitionStore((s) => s.createSession)
   const joinByCode = useCompetitionStore((s) => s.joinByCode)
+  const compPhase = useCompetitionStore((s) => s.phase)
+  const compSession = useCompetitionStore((s) => s.session)
   const compError = useCompetitionStore((s) => s.error)
 
-  // Grab the source profile + settings from the quiz store (set by HomePage)
   const sourceProfile = useQuizStore((s) => s.sourceProfile)
   const settings = useQuizStore((s) => s.settings)
+
+  useEffect(() => {
+    if (compPhase === 'waiting' || compPhase === 'countdown') {
+      navigate('/compete/lobby')
+    } else if (compPhase === 'quiz' || compPhase === 'finished') {
+      navigate('/compete/quiz')
+    } else if (compPhase === 'results') {
+      navigate('/compete/results')
+    }
+  }, [compPhase, navigate])
+
+  useEffect(() => {
+    if (inviteCode) setJoinCode(inviteCode)
+  }, [inviteCode])
 
   if (!supabaseConfigured) {
     return (
@@ -40,7 +58,7 @@ export default function CompetitionSetup() {
     setLoading(true)
     await createSession(sourceProfile, settings, userName.trim())
     setLoading(false)
-    if (!compError) navigate('/compete/lobby')
+    if (!useCompetitionStore.getState().error) navigate('/compete/lobby')
   }
 
   async function handleJoin() {
@@ -50,7 +68,10 @@ export default function CompetitionSetup() {
     setLoading(true)
     await joinByCode(joinCode.trim(), userName.trim())
     setLoading(false)
-    if (!compError) navigate('/compete/lobby')
+    const { error: joinError, phase } = useCompetitionStore.getState()
+    if (joinError) return
+    if (phase === 'quiz') navigate('/compete/quiz')
+    else navigate('/compete/lobby')
   }
 
   if (mode === 'choose') {
@@ -81,6 +102,9 @@ export default function CompetitionSetup() {
       <div className="comp-card">
         <button className="comp-back-link" onClick={() => setMode('choose')}>← Back</button>
         <h2>{mode === 'create' ? 'Create a challenge' : 'Join a challenge'}</h2>
+        {inviteCode && mode === 'join' && (
+          <p className="comp-invite-note">You were invited to join code <strong>{inviteCode}</strong>.</p>
+        )}
 
         <label className="comp-label">
           Your name
@@ -90,6 +114,7 @@ export default function CompetitionSetup() {
             value={userName}
             onChange={(e) => setUserName(e.target.value)}
             maxLength={30}
+            autoFocus
           />
         </label>
 
@@ -102,6 +127,7 @@ export default function CompetitionSetup() {
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               maxLength={6}
+              readOnly={Boolean(inviteCode)}
             />
           </label>
         )}
@@ -117,6 +143,12 @@ export default function CompetitionSetup() {
         >
           {loading ? 'Please wait…' : mode === 'create' ? 'Create & wait for opponent' : 'Join challenge'}
         </button>
+
+        {compSession && mode === 'join' && (
+          <button className="comp-back-link" onClick={() => navigate('/compete/lobby')}>
+            Return to waiting room
+          </button>
+        )}
       </div>
     </main>
   )

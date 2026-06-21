@@ -10,15 +10,29 @@ export default function WaitingRoom() {
   const me = useCompetitionStore((s) => s.me)
   const rival = useCompetitionStore((s) => s.rival)
   const reset = useCompetitionStore((s) => s.reset)
+  const setReady = useCompetitionStore((s) => s.setReady)
+  const refreshLobby = useCompetitionStore((s) => s.refreshLobby)
   const [countdown, setCountdown] = useState(3)
   const [copied, setCopied] = useState(false)
+  const [readyLoading, setReadyLoading] = useState(false)
 
-  // Redirect once quiz is ready
+  useEffect(() => {
+    if (!session) {
+      navigate('/compete')
+      return
+    }
+    void refreshLobby()
+  }, [session, navigate, refreshLobby])
+
   useEffect(() => {
     if (phase === 'countdown') {
+      setCountdown(3)
       const interval = setInterval(() => {
         setCountdown((n) => {
-          if (n <= 1) { clearInterval(interval); return 0 }
+          if (n <= 1) {
+            clearInterval(interval)
+            return 0
+          }
           return n - 1
         })
       }, 1000)
@@ -35,6 +49,13 @@ export default function WaitingRoom() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  async function toggleReady() {
+    if (!me) return
+    setReadyLoading(true)
+    await setReady(!me.ready)
+    setReadyLoading(false)
+  }
+
   if (phase === 'countdown') {
     return (
       <main className="comp-waiting">
@@ -47,13 +68,15 @@ export default function WaitingRoom() {
     )
   }
 
+  const bothReady = Boolean(me?.ready && rival?.ready)
+
   return (
     <main className="comp-waiting">
       <div className="comp-card">
         <div className="comp-header">
           <span className="comp-badge">⚡ Waiting room</span>
           <h2>Share your code</h2>
-          <p>Your opponent needs this to join. The quiz starts the moment they connect.</p>
+          <p>Send the invite link or code to your opponent. The quiz starts when both players are ready.</p>
         </div>
 
         <div className="comp-code-display">{session?.code ?? '------'}</div>
@@ -63,17 +86,37 @@ export default function WaitingRoom() {
         </button>
 
         <div className="comp-players">
-          <div className="comp-player comp-player-ready">
+          <div className={`comp-player ${me?.ready ? 'comp-player-ready' : 'comp-player-waiting'}`}>
             <span className="comp-player-dot" />
             <span>{me?.userName ?? 'You'}</span>
-            <span className="comp-player-tag">Ready</span>
+            <span className="comp-player-tag">{me?.ready ? 'Ready' : 'Not ready'}</span>
           </div>
-          <div className={`comp-player ${rival ? 'comp-player-ready' : 'comp-player-waiting'}`}>
+          <div className={`comp-player ${rival?.ready ? 'comp-player-ready' : 'comp-player-waiting'}`}>
             <span className="comp-player-dot" />
             <span>{rival ? rival.userName : 'Waiting for opponent…'}</span>
-            {rival && <span className="comp-player-tag">Ready</span>}
+            {rival && (
+              <span className="comp-player-tag">{rival.ready ? 'Ready' : 'Not ready'}</span>
+            )}
           </div>
         </div>
+
+        <button
+          className={me?.ready ? 'comp-btn-secondary' : 'comp-btn-primary'}
+          onClick={() => void toggleReady()}
+          disabled={readyLoading || !rival}
+        >
+          {readyLoading
+            ? 'Updating…'
+            : !rival
+              ? 'Waiting for opponent to join…'
+              : me?.ready
+                ? 'Mark not ready'
+                : 'Mark ready'}
+        </button>
+
+        {rival && !bothReady && (
+          <p className="comp-lobby-hint">Both players must mark ready before the countdown begins.</p>
+        )}
 
         <button
           className="comp-back-link"

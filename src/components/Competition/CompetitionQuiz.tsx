@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompetitionStore } from '../../store/competitionStore'
 import { useQuizStore } from '../../store/quizStore'
@@ -13,8 +13,11 @@ const formatTime = (s: number) =>
 export default function CompetitionQuiz() {
   const navigate = useNavigate()
   const [answerText, setAnswerText] = useState('')
+  const quizStarted = useRef(false)
 
-  // Quiz store
+  const session = useCompetitionStore((s) => s.session)
+  const compPhase = useCompetitionStore((s) => s.phase)
+
   const phase = useQuizStore((s) => s.phase)
   const settings = useQuizStore((s) => s.settings)
   const currentQuestion = useQuizStore((s) => s.currentQuestion)
@@ -26,39 +29,58 @@ export default function CompetitionQuiz() {
   const revealHint = useQuizStore((s) => s.revealHint)
   const submitCurrentQuestion = useQuizStore((s) => s.submitCurrentQuestion)
   const continueQuiz = useQuizStore((s) => s.continueQuiz)
+  const setSourceProfile = useQuizStore((s) => s.setSourceProfile)
+  const setSettings = useQuizStore((s) => s.setSettings)
+  const startQuiz = useQuizStore((s) => s.startQuiz)
 
-  // Competition store
   const rival = useCompetitionStore((s) => s.rival)
   const updateMyProgress = useCompetitionStore((s) => s.updateMyProgress)
   const onQuizComplete = useCompetitionStore((s) => s.onQuizComplete)
-  const compPhase = useCompetitionStore((s) => s.phase)
 
   useQuestionTimer()
 
-  // Sync progress after each answered question
+  useEffect(() => {
+    if (!session) {
+      navigate('/compete')
+      return
+    }
+    if (quizStarted.current) return
+    if (compPhase !== 'quiz' && compPhase !== 'finished') return
+
+    quizStarted.current = true
+    setSourceProfile(session.sourceProfile)
+    setSettings(session.settings)
+    void startQuiz()
+  }, [session, compPhase, navigate, setSourceProfile, setSettings, startQuiz])
+
   useEffect(() => {
     if (phase !== 'feedback') return
     const correctCount = results.filter((r) => r.feedback.correct).length
     const score = correctCount / Math.max(results.length, 1)
     void updateMyProgress(results.length, currentDifficulty, correctCount, score)
-  }, [results.length, phase])
+  }, [results.length, phase, currentDifficulty, updateMyProgress, results])
 
-  // Handle quiz completion
   useEffect(() => {
     if (phase === 'summary') {
       const correctCount = results.filter((r) => r.feedback.correct).length
       const score = correctCount / Math.max(results.length, 1)
       void onQuizComplete(results, score, correctCount)
     }
-    if (phase === 'setup') navigate('/')
     if (phase === 'error') navigate('/error')
-  }, [phase])
+  }, [phase, results, onQuizComplete, navigate])
 
-  // Navigate to results when both are done
   useEffect(() => {
-    if (compPhase === 'results') navigate('/compete/results')
-    if (compPhase === 'finished') navigate('/compete/results')
-  }, [compPhase])
+    if (compPhase === 'results' || compPhase === 'finished') navigate('/compete/results')
+  }, [compPhase, navigate])
+
+  if (!session || (phase === 'setup' && !quizStarted.current)) {
+    return (
+      <main className="comp-quiz-status">
+        <div className="spinner" />
+        <p>Starting challenge…</p>
+      </main>
+    )
+  }
 
   if (phase === 'generating' || phase === 'submitting' || !currentQuestion) {
     return (

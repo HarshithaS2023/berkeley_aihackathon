@@ -21,6 +21,7 @@ export type CompetitionParticipant = {
   correctCount: number
   score: number
   completed: boolean
+  ready: boolean
   finishedAt: string | null
   results: SessionResult[] | null
 }
@@ -52,6 +53,7 @@ function toParticipant(row: Record<string, unknown>): CompetitionParticipant {
     correctCount: row.correct_count as number,
     score: row.score as number,
     completed: row.completed as boolean,
+    ready: (row.ready as boolean | undefined) ?? false,
     finishedAt: (row.finished_at as string | null) ?? null,
     results: (row.results as SessionResult[] | null) ?? null,
   }
@@ -108,6 +110,7 @@ export async function joinSession(
       correct_count: 0,
       score: 0,
       completed: false,
+      ready: false,
     })
     .select()
     .single()
@@ -126,6 +129,20 @@ export async function getParticipants(sessionId: string): Promise<CompetitionPar
 
   if (error) throw new Error(error.message)
   return (data ?? []).map(toParticipant)
+}
+
+export async function setParticipantReady(
+  participantId: string,
+  ready: boolean,
+): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { error } = await supabase
+    .from('competition_participants')
+    .update({ ready })
+    .eq('id', participantId)
+
+  if (error) throw new Error(error.message)
 }
 
 export async function markSessionActive(sessionId: string): Promise<void> {

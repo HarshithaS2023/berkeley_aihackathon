@@ -99,6 +99,22 @@
 
 .comp-error { color: #c0392b; font-size: 0.85rem; margin: 0; }
 
+.comp-invite-note {
+  margin: 0;
+  padding: 10px 14px;
+  background: #f0f6e8;
+  border-radius: 10px;
+  color: #557a3b;
+  font-size: 0.9rem;
+}
+
+.comp-lobby-hint {
+  margin: 0;
+  color: #7a8f6a;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
 .comp-mode-btns { display: flex; flex-direction: column; gap: 10px; }
 
 /* ── Setup ── */

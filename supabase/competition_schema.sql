@@ -21,6 +21,7 @@ create table if not exists competition_participants (
   correct_count   int not null default 0,
   score        float not null default 0,
   completed    boolean not null default false,
+  ready        boolean not null default false,
   finished_at  timestamptz,
   results      jsonb                          -- full SessionResult[] on completion
 );
