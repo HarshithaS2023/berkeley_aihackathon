@@ -17,11 +17,28 @@ export type DbMistake = {
 export type DbQuestion = {
   id: string
   session_id: string
+  question: string
+  answer: string
   concepts: string[]
   difficulty: number
   correct: boolean
   time_spent: number
   hints_used: number
+}
+
+export type PastQuestion = {
+  id: string
+  sessionId: string
+  sessionDate: string
+  sessionLabel: string
+  sessionTopics: string[]
+  question: string
+  answer: string
+  concepts: string[]
+  difficulty: number
+  correct: boolean
+  timeSpent: number
+  hintsUsed: number
 }
 
 export type SessionTrendPoint = {
@@ -64,4 +81,5 @@ export type AnalyticsSnapshot = {
   conceptAccuracy: ConceptStat[]
   insights: TrendInsight[]
   topics: string[]
+  pastQuestions: PastQuestion[]
 }

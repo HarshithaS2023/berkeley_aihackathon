@@ -151,10 +151,15 @@ export default function SummaryPage() {
       <div className="summary-glow summary-glow-two" />
 
       <header className="summary-nav">
-        <button type="button" className="summary-brand" onClick={handleNewSession}>
+        <button
+          type="button"
+          className="summary-brand"
+          aria-label="Learn and Grow home"
+          onClick={handleNewSession}
+        >
           <img src={lambMascot} alt="" />
           <span>
-            <strong>Learn+Grow</strong>
+            <strong>Learn and Grow</strong>
             <small>Adaptive study partner</small>
           </span>
         </button>

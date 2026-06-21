@@ -18,6 +18,9 @@ import { CHART_TOPIC_COLORS } from '../../lib/analyticsInsights'
 import { fetchAnalyticsSnapshot } from '../../services/analyticsApi'
 import type { AnalyticsSnapshot, TopicTrendPoint } from '../../types/analytics'
 import './AnalyticsPage.css'
+import PastQuestionsPanel from './PastQuestionsPanel'
+
+type AnalyticsViewMode = 'overview' | 'questions'
 
 function ChartTooltip({
   active,
@@ -237,6 +240,7 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<AnalyticsViewMode>('overview')
 
   useEffect(() => {
     if (!user?.id) return
@@ -324,11 +328,12 @@ export default function AnalyticsPage() {
         <button
           type="button"
           className="analytics-brand"
+          aria-label="Learn and Grow home"
           onClick={() => navigate('/')}
         >
           <img src={mascot} alt="" />
           <span>
-            <strong>Learn+Grow</strong>
+            <strong>Learn and Grow</strong>
             <small>Learning analytics</small>
           </span>
         </button>
@@ -358,9 +363,37 @@ export default function AnalyticsPage() {
             {data.sessionCount === 1 ? '' : 's'} — accuracy dips by subject, missed
             concepts, and how your pace is changing over time.
           </p>
+          <div
+            className="analytics-view-toggle"
+            role="tablist"
+            aria-label="Analytics view"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewMode === 'overview'}
+              className={viewMode === 'overview' ? 'active' : undefined}
+              onClick={() => setViewMode('overview')}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewMode === 'questions'}
+              className={viewMode === 'questions' ? 'active' : undefined}
+              onClick={() => setViewMode('questions')}
+            >
+              Past questions
+            </button>
+          </div>
         </section>
 
-        <AnalyticsContent data={data} />
+        {viewMode === 'overview' ? (
+          <AnalyticsContent data={data} />
+        ) : (
+          <PastQuestionsPanel questions={data.pastQuestions} />
+        )}
       </div>
     </main>
   )

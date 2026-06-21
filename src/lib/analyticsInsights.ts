@@ -4,6 +4,7 @@ import type {
   DbMistake,
   DbQuestion,
   DbSession,
+  PastQuestion,
   SessionTrendPoint,
   TopicTrendPoint,
   TrendInsight,
@@ -241,6 +242,46 @@ function buildSummaryInsight(
   }
 }
 
+export function buildPastQuestions(
+  sessions: DbSession[],
+  questions: DbQuestion[],
+): PastQuestion[] {
+  const questionsBySession = new Map<string, DbQuestion[]>()
+  for (const question of questions) {
+    const bucket = questionsBySession.get(question.session_id) ?? []
+    bucket.push(question)
+    questionsBySession.set(question.session_id, bucket)
+  }
+
+  const result: PastQuestion[] = []
+
+  for (const session of [...sessions].reverse()) {
+    const sessionQuestions = questionsBySession.get(session.id) ?? []
+    sessionQuestions.sort((a, b) => a.id.localeCompare(b.id))
+    const sessionLabel = formatFullDate(session.created_at)
+    const sessionTopics = session.topics?.length ? session.topics : ['General']
+
+    for (const item of sessionQuestions) {
+      result.push({
+        id: item.id,
+        sessionId: session.id,
+        sessionDate: session.created_at,
+        sessionLabel,
+        sessionTopics,
+        question: item.question,
+        answer: item.answer,
+        concepts: item.concepts?.length ? item.concepts : ['general'],
+        difficulty: item.difficulty,
+        correct: item.correct,
+        timeSpent: item.time_spent,
+        hintsUsed: item.hints_used,
+      })
+    }
+  }
+
+  return result
+}
+
 export function buildAnalyticsSnapshot(
   sessions: DbSession[],
   mistakes: DbMistake[],
@@ -256,6 +297,7 @@ export function buildAnalyticsSnapshot(
       conceptAccuracy: [],
       insights: [],
       topics: [],
+      pastQuestions: [],
     }
   }
 
@@ -289,5 +331,6 @@ export function buildAnalyticsSnapshot(
     conceptAccuracy: byAccuracy,
     insights,
     topics,
+    pastQuestions: buildPastQuestions(sessions, questions),
   }
 }

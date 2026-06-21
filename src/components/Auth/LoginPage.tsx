@@ -78,10 +78,10 @@ export default function LoginPage() {
       <div className="auth-glow auth-glow-two" />
 
       <header className="auth-nav">
-        <Link className="auth-brand" to="/">
+        <Link className="auth-brand" to="/" aria-label="Learn and Grow home">
           <span className="auth-brand-mark">L+G</span>
           <span>
-            <strong>Learn+Grow</strong>
+            <strong>Learn and Grow</strong>
             <small>Adaptive study partner</small>
           </span>
         </Link>

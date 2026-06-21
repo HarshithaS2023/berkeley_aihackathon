@@ -188,12 +188,12 @@ export default function HomePage() {
       <div className="home-glow home-glow-two" />
 
       <header className="home-nav">
-        <a className="home-brand" href="/" aria-label="Learn+Grow home">
+        <a className="home-brand" href="/" aria-label="Learn and Grow home">
           <span className="home-brand-mark">
             <img src={mascot} alt="" />
           </span>
           <span>
-            <strong>Learn+Grow</strong>
+            <strong>Learn and Grow</strong>
             <small>Adaptive study partner</small>
           </span>
         </a>

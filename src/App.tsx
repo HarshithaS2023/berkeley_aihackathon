@@ -69,7 +69,7 @@ function StatusScreen({ message }: { message: string }) {
       <img src={lambMascot} alt="" />
       <div className="spinner" />
       <h2>{message}</h2>
-      <p>Learn+Grow is getting everything ready.</p>
+      <p>Llamma is getting everything ready.</p>
     </main>
   )
 }
@@ -163,12 +163,12 @@ const revealHint = useQuizStore((state) => state.revealHint)
         <button
           type="button"
           className="quiz-brand"
+          aria-label="Learn and Grow home"
           onClick={() => navigate('/')}
-          aria-label="Return home"
         >
           <img src={lambMascot} alt="" />
           <span>
-            <strong>Learn+Grow</strong>
+            <strong>Learn and Grow</strong>
             <small>Adaptive practice</small>
           </span>
         </button>

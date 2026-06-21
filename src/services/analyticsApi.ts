@@ -57,7 +57,9 @@ export async function fetchAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
       .in('session_id', sessionIds),
     supabase
       .from('questions')
-      .select('id, session_id, concepts, difficulty, correct, time_spent, hints_used')
+      .select(
+        'id, session_id, question, answer, concepts, difficulty, correct, time_spent, hints_used',
+      )
       .in('session_id', sessionIds),
   ])
 

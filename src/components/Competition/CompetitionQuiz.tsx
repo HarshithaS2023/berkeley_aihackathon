@@ -75,7 +75,7 @@ export default function CompetitionQuiz() {
         <img src={lambMascot} alt="" />
         <div className="spinner" />
         <h2>Starting challenge…</h2>
-        <p>Learn+Grow is getting everything ready.</p>
+        <p>Llamma is getting everything ready.</p>
       </main>
     )
   }
@@ -97,7 +97,7 @@ export default function CompetitionQuiz() {
         <img src={lambMascot} alt="" />
         <div className="spinner" />
         <h2>{phase === 'submitting' ? 'Analyzing your work…' : 'Growing your next question…'}</h2>
-        <p>Learn+Grow is getting everything ready.</p>
+        <p>Llamma is getting everything ready.</p>
       </main>
     )
   }
@@ -115,11 +115,11 @@ export default function CompetitionQuiz() {
           type="button"
           className="quiz-brand"
           onClick={() => navigate('/')}
-          aria-label="Return home"
+          aria-label="Learn and Grow home"
         >
           <img src={lambMascot} alt="" />
           <span>
-            <strong>Learn+Grow</strong>
+            <strong>Learn and Grow</strong>
             <small>⚡ Challenge mode</small>
           </span>
         </button>
