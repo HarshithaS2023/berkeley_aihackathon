@@ -5,6 +5,7 @@ import { useQuizStore } from '../../store/quizStore'
 import { useQuestionTimer } from '../../hooks/useQuestionTimer'
 import { WorkPanel } from '../WorkPanel/WorkPanel'
 import { RivalPanel } from './RivalPanel'
+import lambMascot from '../../assets/lamb-mascot.png'
 import './Competition.css'
 
 const formatTime = (s: number) =>
@@ -17,6 +18,9 @@ export default function CompetitionQuiz() {
 
   const session = useCompetitionStore((s) => s.session)
   const compPhase = useCompetitionStore((s) => s.phase)
+  const rival = useCompetitionStore((s) => s.rival)
+  const updateMyProgress = useCompetitionStore((s) => s.updateMyProgress)
+  const onQuizComplete = useCompetitionStore((s) => s.onQuizComplete)
 
   const phase = useQuizStore((s) => s.phase)
   const settings = useQuizStore((s) => s.settings)
@@ -33,20 +37,12 @@ export default function CompetitionQuiz() {
   const setSettings = useQuizStore((s) => s.setSettings)
   const startQuiz = useQuizStore((s) => s.startQuiz)
 
-  const rival = useCompetitionStore((s) => s.rival)
-  const updateMyProgress = useCompetitionStore((s) => s.updateMyProgress)
-  const onQuizComplete = useCompetitionStore((s) => s.onQuizComplete)
-
   useQuestionTimer()
 
   useEffect(() => {
-    if (!session) {
-      navigate('/compete')
-      return
-    }
+    if (!session) { navigate('/compete'); return }
     if (quizStarted.current) return
     if (compPhase !== 'quiz' && compPhase !== 'finished') return
-
     quizStarted.current = true
     setSourceProfile(session.sourceProfile)
     setSettings(session.settings)
@@ -70,23 +66,38 @@ export default function CompetitionQuiz() {
   }, [phase, results, onQuizComplete, navigate])
 
   useEffect(() => {
-    if (compPhase === 'results' || compPhase === 'finished') navigate('/compete/results')
+    if (compPhase === 'results') navigate('/compete/results')
   }, [compPhase, navigate])
 
   if (!session || (phase === 'setup' && !quizStarted.current)) {
     return (
-      <main className="comp-quiz-status">
+      <main className="quiz-status">
+        <img src={lambMascot} alt="" />
         <div className="spinner" />
-        <p>Starting challenge…</p>
+        <h2>Starting challenge…</h2>
+        <p>Learn+Grow is getting everything ready.</p>
+      </main>
+    )
+  }
+
+  if (compPhase === 'finished') {
+    return (
+      <main className="quiz-status">
+        <img src={lambMascot} alt="" />
+        <div className="spinner" />
+        <h2>Waiting for {rival?.userName ?? 'your opponent'} to finish…</h2>
+        <p>You're done! Hang tight while they complete their challenge.</p>
       </main>
     )
   }
 
   if (phase === 'generating' || phase === 'submitting' || !currentQuestion) {
     return (
-      <main className="comp-quiz-status">
+      <main className="quiz-status">
+        <img src={lambMascot} alt="" />
         <div className="spinner" />
-        <p>{phase === 'submitting' ? 'Analyzing your work…' : 'Loading next question…'}</p>
+        <h2>{phase === 'submitting' ? 'Analyzing your work…' : 'Growing your next question…'}</h2>
+        <p>Learn+Grow is getting everything ready.</p>
       </main>
     )
   }
@@ -98,66 +109,106 @@ export default function CompetitionQuiz() {
   const safeQ = Math.min(displayedQ, settings.numQuestions)
 
   return (
-    <main className="comp-quiz-layout">
-      <div className="comp-quiz-main">
-        <header className="comp-quiz-header">
-          <div>
-            <span className="comp-badge">⚡ Challenge</span>
-            <span className="comp-q-counter">Q{safeQ} / {settings.numQuestions}</span>
-          </div>
-          <div className="comp-quiz-meta">
-            <span className="comp-difficulty">Level {currentDifficulty}</span>
-            <span className="comp-timer">{formatTime(elapsedSeconds)}</span>
-          </div>
-        </header>
+    <main className="quiz-page">
+      <header className="quiz-nav">
+        <button
+          type="button"
+          className="quiz-brand"
+          onClick={() => navigate('/')}
+          aria-label="Return home"
+        >
+          <img src={lambMascot} alt="" />
+          <span>
+            <strong>Learn+Grow</strong>
+            <small>⚡ Challenge mode</small>
+          </span>
+        </button>
 
-        <section className="comp-question-card">
-          <p className="question-kicker">{currentQuestion.concepts.join(' · ')}</p>
-          <h2>{currentQuestion.question}</h2>
+        <div className="quiz-nav-progress">
+          <span>Question {safeQ} of {settings.numQuestions}</span>
+          <div><i style={{ width: `${(safeQ / settings.numQuestions) * 100}%` }} /></div>
+        </div>
 
-          {visibleHints.map((hint) => (
-            <p key={hint} className="comp-hint">💡 {hint}</p>
-          ))}
+        <div className="quiz-meta">
+          <span className="difficulty"><i />Level {currentDifficulty}</span>
+          <span className="timer">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="13" r="8" />
+              <path d="M12 9v4l2.5 1.5M9 3h6" />
+            </svg>
+            {formatTime(elapsedSeconds)}
+          </span>
+        </div>
+      </header>
 
-          {!isFeedback && (
-            <>
-              <label className="comp-label">
-                Final answer (optional)
-                <input
-                  className="comp-input"
-                  value={answerText}
-                  onChange={(e) => setAnswerText(e.target.value)}
-                  placeholder="Your answer"
-                />
-              </label>
-
-              <WorkPanel
-                question={currentQuestion}
-                onShowHint={hintsUsed < currentQuestion.hints.length ? () => revealHint() : undefined}
-                onSubmitWork={(work) =>
-                  void submitCurrentQuestion({ ...work, answerText: answerText.trim() || undefined })
-                }
-              />
-            </>
-          )}
-
-          {isFeedback && (
-            <div className={`comp-feedback ${latestFeedback.correct ? 'comp-feedback-correct' : 'comp-feedback-wrong'}`}>
-              <p className="comp-feedback-verdict">{latestFeedback.correct ? '✓ Correct' : '✗ Keep going'}</p>
-              <p>{latestFeedback.feedback}</p>
-              <p className="comp-feedback-next">{latestFeedback.suggestedNextStep}</p>
-              <button
-                className="comp-btn-primary"
-                onClick={() => { setAnswerText(''); void continueQuiz() }}
-              >
-                {isLastQuestion ? 'See results' : 'Next question →'}
-              </button>
+      <div className="quiz-shell">
+        <div className="comp-quiz-with-rival">
+          <section className="question-card">
+            <div className="question-heading">
+              <div className="question-number">{String(safeQ).padStart(2, '0')}</div>
+              <div className="question-content">
+                <p className="question-kicker">
+                  {currentQuestion.concepts.join(' · ') || 'Practice question'}
+                </p>
+                <h1>{currentQuestion.question}</h1>
+              </div>
             </div>
-          )}
-        </section>
-      </div>
 
-      <RivalPanel rival={rival} totalQuestions={settings.numQuestions} />
+            {visibleHints.map((hint) => (
+              <div className="hint" key={hint}>
+                <span>✦</span>
+                <div>
+                  <strong>A gentle nudge</strong>
+                  <p>{hint}</p>
+                </div>
+              </div>
+            ))}
+
+            {!isFeedback && (
+              <div className="quiz-answer-area">
+                <label className="final-answer">
+                  <span>Final answer <small>optional</small></span>
+                  <input
+                    value={answerText}
+                    onChange={(e) => setAnswerText(e.target.value)}
+                    placeholder="Type your final answer here"
+                  />
+                </label>
+                <WorkPanel
+                  question={currentQuestion}
+                  onShowHint={hintsUsed < currentQuestion.hints.length ? () => revealHint() : undefined}
+                  onSubmitWork={(work) =>
+                    void submitCurrentQuestion({ ...work, answerText: answerText.trim() || undefined })
+                  }
+                />
+              </div>
+            )}
+
+            {isFeedback && (
+              <div className={`feedback ${latestFeedback.correct ? 'correct' : 'incorrect'}`}>
+                <div className="feedback-icon">
+                  {latestFeedback.correct ? '✓' : '↗'}
+                </div>
+                <div className="feedback-copy">
+                  <span>{latestFeedback.correct ? 'Nicely done' : "Let's refine it"}</span>
+                  <h2>{latestFeedback.feedback}</h2>
+                  <p>{latestFeedback.suggestedNextStep}</p>
+                </div>
+                <button
+                  className="quiz-primary"
+                  type="button"
+                  onClick={() => { setAnswerText(''); void continueQuiz() }}
+                >
+                  {isLastQuestion ? 'View summary' : 'Next question'}
+                  <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            )}
+          </section>
+
+          <RivalPanel rival={rival} totalQuestions={settings.numQuestions} />
+        </div>
+      </div>
     </main>
   )
 }
